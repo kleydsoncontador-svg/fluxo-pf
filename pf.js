@@ -185,10 +185,25 @@
   const TD = 'padding:6px 9px;border-bottom:1px solid var(--border);font-size:12.5px;vertical-align:top';
   const dadosAtual = () => { const d = lerDados(ST.pf); let mu = garantirRecorrencias(d, somaMes(fechMes(), LIMITE_MESES)); if (garantirBancos(d)) mu = true; if (mu) gravarDados(ST.pf, d); return d; };
   const pfAtual = () => lerLista().find(x => x.id === ST.pf);
-  function tabela(cols, linhas, vazio) {
-    return '<div style="overflow:auto;border:1px solid var(--border);border-radius:8px"><table style="width:100%;border-collapse:collapse"><thead><tr>' + cols.map(c => '<th style="' + TH + (c.r ? ';text-align:right' : '') + '">' + c.t + '</th>').join('') + '</tr></thead><tbody>'
+  // Tabela com cabeçalho congelado (fica visível ao rolar) e linha de filtros logo abaixo (um campo por coluna; filtra na hora, sem recarregar).
+  function tabela(cols, linhas, vazio, semFiltro) {
+    const sig = cols.map(c => String(c.t).replace(/<[^>]*>/g, '')).join('|') + '#' + (ST.pf || '') + (ST.aba || '') + (ST.tela || '');
+    const fil = semFiltro ? '' : '<tr class="kpfFiltroLinha">' + cols.map((c, i) => '<th style="' + TH + ';padding:3px 5px;font-weight:400">' + ((String(c.t).replace(/<[^>]*>/g, '').trim()) ? '<input class="kpfFiltroIn" data-i="' + i + '" placeholder="filtrar" oninput="kcbmPf.filtrar(this)" style="width:100%;min-width:60px;box-sizing:border-box;padding:3px 6px;font-size:11.5px;border-radius:5px;border:1px solid #666;background:#fff;color:#111">' : '') + '</th>').join('') + '</tr>';
+    return '<div style="overflow:auto;max-height:calc(100vh - 150px);border:1px solid var(--border);border-radius:8px"><table data-sig="' + E(sig) + '" data-nf="' + (semFiltro ? 0 : 1) + '" style="width:100%;border-collapse:collapse"><thead style="position:sticky;top:0;z-index:3"><tr>' + cols.map(c => '<th style="' + TH + (c.r ? ';text-align:right' : '') + '">' + c.t + '</th>').join('') + '</tr>' + fil + '</thead><tbody>'
       + (linhas.length ? linhas.join('') : '<tr><td colspan="' + cols.length + '" style="padding:22px;text-align:center;color:var(--slate)">' + (vazio || 'Nada por aqui ainda.') + '</td></tr>') + '</tbody></table></div>';
   }
+  const FILTROS = {};
+  function aplicarFiltroTabela(t) {
+    const f = FILTROS[t.getAttribute('data-sig')] || {}, ks = Object.keys(f).filter(k => f[k]);
+    t.querySelectorAll('.kpfFiltroIn').forEach(inp => { const v = f[inp.getAttribute('data-i')] || ''; if (inp.value !== v) inp.value = v; });
+    let visivel = true; const rows = Array.from(t.tBodies[0] ? t.tBodies[0].rows : []);
+    rows.forEach(r => {
+      const sub = r.cells.length === 1 && r.cells[0].colSpan > 1;
+      if (sub) { if (rows.length > 1) r.style.display = visivel ? '' : 'none'; return; }
+      visivel = ks.every(k => norm(r.cells[+k] ? r.cells[+k].textContent : '').indexOf(norm(f[k])) >= 0); r.style.display = visivel ? '' : 'none';
+    });
+  }
+  const aplicarFiltros = () => { try { const e = el(); if (e) e.querySelectorAll('table[data-nf="1"]').forEach(aplicarFiltroTabela); } catch (x) { console.warn('filtros', x); } };
   const td = (v, r) => '<td style="' + TD + (r ? ';text-align:right;white-space:nowrap' : '') + '">' + v + '</td>';
   const cor = v => v < 0 ? '#dc2626' : 'var(--teal)';
   function modal(titulo, corpoHtml, aoSalvar, rotSalvar, larg) {
@@ -387,7 +402,7 @@
       }
     }
     return '<div style="font-size:12.5px;color:var(--slate);margin-bottom:10px">Resultado acumulado ano a ano (receitas − gastos). Clique no ano para ver o movimento mês a mês. Conta pela data de vencimento; compra no cartão entra na data da fatura. Um ano novo abre sozinho quando o calendário virar.</div>'
-      + tabela([{ t: 'Ano' }, { t: 'Receitas', r: 1 }, { t: 'Gastos', r: 1 }, { t: 'Resultado do ano', r: 1 }, { t: 'Acumulado', r: 1 }], [html], '');
+      + tabela([{ t: 'Ano' }, { t: 'Receitas', r: 1 }, { t: 'Gastos', r: 1 }, { t: 'Resultado do ano', r: 1 }, { t: 'Acumulado', r: 1 }], [html], '', true);
   }
   function abaMovimentacao(d) {
     const mes = fechMes(), fl = ST.movFiltro || 'todos', rows = [];
@@ -663,6 +678,7 @@
       if (!n) { root.toast('Não há baixa feita por aqui para desfazer (pagamentos vindos do extrato se desfazem no extrato).', 'err'); return; }
       gravarDados(ST.pf, dd); render();
     },
+    filtrar(inp) { const t = inp.closest('table'); if (!t) return; const sg = t.getAttribute('data-sig'); (FILTROS[sg] = FILTROS[sg] || {})[inp.getAttribute('data-i')] = inp.value; aplicarFiltroTabela(t); },
     acumAbrir(k) { ST.acumAberto[k] = !ST.acumAberto[k]; render(); },
     movAbrir(key) { ST.movAberto[key] = !ST.movAberto[key]; render(); },
     movFiltro(f) { ST.movFiltro = f; render(); },
@@ -718,7 +734,7 @@
     }
   };
   root.kcbmPf = K;
-  function render() { if (!el()) return; if (ST.pf) telaPessoa(); else if (ST.tela === 'tipos') telaTipos(); else if (ST.tela === 'terceiros') telaTerceiros(); else telaLista(); }
+  function render() { if (!el()) return; if (ST.pf) telaPessoa(); else if (ST.tela === 'tipos') telaTipos(); else if (ST.tela === 'terceiros') telaTerceiros(); else telaLista(); aplicarFiltros(); }
 
   // ───────────── início no Fluxo PF (app próprio) ─────────────
   root.pfRender = render;

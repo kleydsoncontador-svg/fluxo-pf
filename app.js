@@ -121,7 +121,7 @@
     root.querySelectorAll('table').forEach(function (t) {
       if (t.closest('#pf-modal,[id^="kpf"]') && !t.closest('#kpfAba')) return; if (t.parentElement.closest('table')) return;
       var c = t.cloneNode(true); c.querySelectorAll('button,input,select,svg,script').forEach(function (n) { n.remove(); });
-      c.querySelectorAll('tr').forEach(function (r) { if (!r.textContent.trim()) r.remove(); });
+      c.querySelectorAll('tr').forEach(function (r) { if (!r.textContent.trim() || r.style.display === 'none') r.remove(); });
       var tit = ''; var el = t.previousElementSibling; while (el && !tit) { tit = (el.textContent || '').trim(); el = el.previousElementSibling; } if (tit.length > 90) tit = tit.slice(0, 90) + '…';
       out.push({ tit: tit, html: c.outerHTML });
     });
