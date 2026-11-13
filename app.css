@@ -58,3 +58,7 @@ button,input,select{font-family:inherit}
   .btn{padding:8px 10px}
   table{font-size:12px}
 }
+
+/* Telas grandes: amplia tudo (o texto fica pequeno demais em monitor largo) */
+@media (min-width:1400px){html{zoom:1.2}#pf-app{max-width:1500px}}
+@media (min-width:1800px){html{zoom:1.45}#pf-app{max-width:1500px}}
