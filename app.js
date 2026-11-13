@@ -2,7 +2,7 @@
    O app só abre com login; o cadastro público de usuários fica DESLIGADO no Supabase e as regras de acesso (RLS) só deixam o e-mail do dono ler/gravar (a trava está no banco, não no código do site). */
 (function () {
   'use strict';
-  var sb = null, usuario = null, cache = {}, pendentes = 0;
+  var sb = null, usuario = null, cache = {}, pendentes = 0, carregado = false;
 
   // ── aviso na tela (o módulo usa toast(msg, tipo)) ──
   var tt = null;
@@ -16,6 +16,7 @@
     g: function (k) { return (k in cache) ? cache[k] : null; },
     s: function (k, v) {
       if (v == null) v = {};
+      if (!carregado) { window.toast('Os dados ainda não carregaram — não salvei nada para não apagar o que existe.', 'err'); return; }
       cache[k] = v; pendentes++;
       sb.from('dados_app').upsert({ key: k, value: v, updated_at: new Date().toISOString() }).then(function (r) {
         pendentes--; if (r.error) { console.warn('Fluxo PF: não gravou', k, r.error); window.toast('Não consegui salvar no banco (' + (r.error.message || 'erro') + '). Confira a internet e tente de novo.', 'err'); }
@@ -28,13 +29,14 @@
   function somaMes(m, n) { var y = +m.slice(0, 4), mm = +m.slice(5, 7) - 1 + n, d = new Date(y, mm, 1); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); }
 
   async function carregarTudo() {
-    cache = {}; var de = 0;
+    var novo = {}, de = 0; // carrega num objeto à parte e só troca no fim: nunca deixa o app ver dados pela metade
     for (;;) {
       var r = await sb.from('dados_app').select('key,value').range(de, de + 999);
       if (r.error) throw r.error;
-      (r.data || []).forEach(function (x) { cache[x.key] = x.value; });
+      (r.data || []).forEach(function (x) { novo[x.key] = x.value; });
       if ((r.data || []).length < 1000) break; de += 1000;
     }
+    cache = novo; carregado = true;
   }
 
   // ── leitor de extrato em PDF (mesmo leitor genérico do KCBM: só aceita se o saldo conferir) ──
@@ -146,7 +148,7 @@
     try { await carregarTudo(); } catch (e) { console.warn(e); document.getElementById('pf-app').innerHTML = '<div style="padding:40px;text-align:center;color:var(--neg)">Não consegui carregar os dados (' + (e.message || e) + '). Recarregue a página.</div>'; return; }
     desenharTopo(); window.pfRender();
   }
-  function mostrarLogin(msg) { document.getElementById('tela-app').style.display = 'none'; document.getElementById('tela-login').style.display = 'flex'; cache = {}; if (msg) document.getElementById('loginErro').textContent = msg; }
+  function mostrarLogin(msg) { document.getElementById('tela-app').style.display = 'none'; document.getElementById('tela-login').style.display = 'flex'; cache = {}; carregado = false; if (msg) document.getElementById('loginErro').textContent = msg; }
 
   function ligarLogin() {
     var form = document.getElementById('formLogin'), erro = document.getElementById('loginErro');
