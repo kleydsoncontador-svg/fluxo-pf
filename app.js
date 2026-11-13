@@ -83,12 +83,41 @@
     inp.click();
   }
 
+
+  // ── exportar a tela atual: pega as tabelas visíveis (sem botões) e gera Excel (.xls em HTML) ou abre a impressão (salvar como PDF) ──
+  function tabelasDaTela() {
+    var root = document.getElementById('pf-app'), out = [];
+    root.querySelectorAll('table').forEach(function (t) {
+      if (t.closest('#pf-modal,[id^="kpf"]') && !t.closest('#kpfAba')) return; if (t.parentElement.closest('table')) return;
+      var c = t.cloneNode(true); c.querySelectorAll('button,input,select,svg,script').forEach(function (n) { n.remove(); });
+      c.querySelectorAll('tr').forEach(function (r) { if (!r.textContent.trim()) r.remove(); });
+      var tit = ''; var el = t.previousElementSibling; while (el && !tit) { tit = (el.textContent || '').trim(); el = el.previousElementSibling; } if (tit.length > 90) tit = tit.slice(0, 90) + '…';
+      out.push({ tit: tit, html: c.outerHTML });
+    });
+    return out;
+  }
+  function exportarTela(tipo) {
+    var tabs = tabelasDaTela(); if (!tabs.length) { window.toast('Não há tabela nesta tela para exportar.', 'err'); return; }
+    var ab = document.querySelector('#pf-app button[style*="3px solid"]'), pessoa = (document.querySelector('#pf-app [style*="1.25rem"]') || {}).textContent || '', ref = window.S.fechAtual();
+    var titulo = 'Fluxo PF — ' + (pessoa.trim() ? pessoa.trim() + ' — ' : '') + (ab ? ab.textContent.trim() + ' — ' : '') + ref.slice(5, 7) + '/' + ref.slice(0, 4);
+    var css = 'body{font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#111}h1{font-size:16px;margin:0 0 4px}h2{font-size:13px;margin:14px 0 4px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #999;padding:4px 6px;text-align:left}th{background:#e5e5e5}.s{font-size:10px;color:#555;margin-bottom:8px}';
+    var corpo = '<h1>' + titulo + '</h1><div class="s">Gerado em ' + new Date().toLocaleString('pt-BR') + '</div>' + tabs.map(function (x) { return (x.tit ? '<h2>' + x.tit.replace(/</g, '&lt;') + '</h2>' : '') + x.html; }).join('');
+    var doc = '<!doctype html><html><head><meta charset="utf-8"><title>' + titulo + '</title><style>' + css + '</style></head><body>' + corpo + '</body></html>';
+    if (tipo === 'xls') {
+      var blob = new Blob(['﻿', doc], { type: 'application/vnd.ms-excel;charset=utf-8' }), a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'fluxo-pf-' + new Date().toISOString().slice(0, 10) + '.xls'; document.body.appendChild(a); a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 500); window.toast('Excel baixado.', 'ok');
+    } else {
+      var w = window.open('', '_blank'); if (!w) { window.toast('O navegador bloqueou a janela. Permita pop-ups para este site.', 'err'); return; }
+      w.document.open(); w.document.write(doc.replace('</body>', '<script>window.onload=function(){setTimeout(function(){window.print()},300)}<\/script></body>')); w.document.close();
+    }
+  }
   // ── tela do app ──
   function desenharTopo() {
     var ref = window.S.fechAtual();
     document.getElementById('topo').innerHTML = '<div class="marca"><i></i>FLUXO PF</div><div class="fim">'
       + '<div class="ref" title="Mês de referência: o saldo e a projeção começam por ele"><button id="refAnt" aria-label="Mês anterior">‹</button><b>' + ref.slice(5, 7) + '/' + ref.slice(0, 4) + '</b><button id="refProx" aria-label="Próximo mês">›</button></div>'
+      + '<button class="mini" id="btnPdf" title="Imprimir ou salvar esta tela em PDF">PDF</button><button class="mini" id="btnXls" title="Baixar esta tela em Excel">Excel</button>'
       + '<button id="btnBackup" title="Baixar uma cópia de todos os dados">⬇ Backup</button><button id="btnRestaurar" title="Importar dados de um arquivo de backup (ou do módulo antigo do KCBM)">⬆ Importar</button><button id="btnTema" title="Claro / escuro">◐</button><button id="btnSair">Sair</button></div>';
+    document.getElementById('btnPdf').onclick = function () { exportarTela('pdf'); }; document.getElementById('btnXls').onclick = function () { exportarTela('xls'); };
     document.getElementById('btnTema').onclick = alternarTema; document.getElementById('btnBackup').onclick = baixarBackup; document.getElementById('btnRestaurar').onclick = restaurarBackup;
     document.getElementById('btnSair').onclick = function () { sb.auth.signOut(); };
     var troca = function (n) { window.S.s('fpf_referencia', somaMes(window.S.fechAtual(), n)); desenharTopo(); window.pfRender && window.pfRender(); };

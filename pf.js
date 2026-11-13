@@ -141,7 +141,7 @@
     if (l.classe) return l.valor < 0 ? 'D Despesa — ' + (l.classe.categoria || 'Gastos') + ' · C ' + banco : 'D ' + banco + ' · C Receita — ' + (l.classe.categoria || 'Entradas');
     return '';
   }
-  root.__kcbmPfTeste = { baixaAutomatica, mestreDe, gruposCartoes, grupoUso, temaCartao, get CORES_CARTAO() { return CORES_CARTAO; }, bandeiraSvg, lerLista, gravarLista, lerDados, gravarDados, dividir, faturaDaCompra, gerarParcelas, estenderRecorrencia, garantirRecorrencias, alterarValorParcela, encerrarRecorrencia, saldoMes, faturasDoCartao, faturasQueVencemNoMes, ajusteDeFatura, limiteUsado, lancamentoTexto, cpfValido, somaMes, num, mesInicio };
+  root.__kcbmPfTeste = { garantirBancos, get bancoTipoDe() { return bancoTipoDe; }, baixaAutomatica, mestreDe, gruposCartoes, grupoUso, temaCartao, get CORES_CARTAO() { return CORES_CARTAO; }, bandeiraSvg, lerLista, gravarLista, lerDados, gravarDados, dividir, faturaDaCompra, gerarParcelas, estenderRecorrencia, garantirRecorrencias, alterarValorParcela, encerrarRecorrencia, saldoMes, faturasDoCartao, faturasQueVencemNoMes, ajusteDeFatura, limiteUsado, lancamentoTexto, cpfValido, somaMes, num, mesInicio };
 
   // Símbolo de cada bandeira (desenho simples em SVG, sem imagem externa). Bandeira própria/desconhecida: cartão genérico com as iniciais.
   function bandeiraSvg(nome, h) {
@@ -175,14 +175,14 @@
     return escuro ? { bg: cor, fg: '#fff', mut: 'rgba(255,255,255,.78)', neg: '#FECACA', pos: '#fff', borda: 'rgba(0,0,0,.25)', sel: '#fff' } : { bg: cor, fg: '#111827', mut: 'rgba(17,24,39,.72)', neg: '#991B1B', pos: '#14532D', borda: 'rgba(0,0,0,.18)', sel: '#111827' };
   }
   // ───────────── estado e telas ─────────────
-  const ST = { pf: null, aba: 'movimentacao', movFiltro: 'todos', movAberto: {}, mesSaldo: null, mesLista: hoje().slice(0, 7), cartaoSel: null, mesFatura: null, tela: 'lista' };
+  const ST = { bancoSel: '', pf: null, aba: 'movimentacao', movFiltro: 'todos', movAberto: {}, mesSaldo: null, mesLista: hoje().slice(0, 7), cartaoSel: null, mesFatura: null, tela: 'lista' };
   const el = () => document.getElementById('pf-app');
   const ABAS = [['movimentacao', '🔁 Movimentação'], ['extrato', '🏦 Extrato bancário'], ['cartoes', '💳 Cartões de crédito'], ['saldo', '⚖ Saldo a pagar / a receber']];
   const B = (txt, on, cls, ttl) => '<button class="btn ' + (cls || 'bo') + ' bsm" ' + (ttl ? 'title="' + E(ttl) + '" ' : '') + 'onclick="' + on + '">' + txt + '</button>';
   const IN = 'width:100%;padding:7px 9px;border:1px solid var(--border);border-radius:6px;background:var(--white);color:var(--ink);font:inherit;font-size:13px';
   const TH = 'padding:7px 9px;text-align:left;font-size:11.5px;white-space:nowrap;background:var(--ink2);color:#fff';
   const TD = 'padding:6px 9px;border-bottom:1px solid var(--border);font-size:12.5px;vertical-align:top';
-  const dadosAtual = () => { const d = lerDados(ST.pf); if (garantirRecorrencias(d, somaMes(fechMes(), LIMITE_MESES))) gravarDados(ST.pf, d); return d; };
+  const dadosAtual = () => { const d = lerDados(ST.pf); let mu = garantirRecorrencias(d, somaMes(fechMes(), LIMITE_MESES)); if (garantirBancos(d)) mu = true; if (mu) gravarDados(ST.pf, d); return d; };
   const pfAtual = () => lerLista().find(x => x.id === ST.pf);
   function tabela(cols, linhas, vazio) {
     return '<div style="overflow:auto;border:1px solid var(--border);border-radius:8px"><table style="width:100%;border-collapse:collapse"><thead><tr>' + cols.map(c => '<th style="' + TH + (c.r ? ';text-align:right' : '') + '">' + c.t + '</th>').join('') + '</tr></thead><tbody>'
@@ -275,8 +275,55 @@
       + '<div style="text-align:right;font-weight:700;margin-top:8px">Total do mês: <span style="color:' + (ent ? 'var(--teal)' : '#dc2626') + '">' + R$(total) + '</span></div>';
   }
   // ── Extrato bancário ──
-  function abaExtrato(d) {
-    const mes = fechMes(), itens = (d.extrato || []).filter(x => x.data.slice(0, 7) === mes).sort((a, b) => a.data.localeCompare(b.data) || (a.criado || 0) - (b.criado || 0));
+  // ── Bancos (cardzinhos do Extrato): símbolo, agência/conta (opcional) e saldo inicial. O PDF NÃO é guardado: só as linhas viram tabela. ──
+  const BANCOS_TIPOS = [['caixa', 'Caixa Econômica'], ['bradesco', 'Bradesco'], ['bb', 'Banco do Brasil'], ['itau', 'Itaú'], ['santander', 'Santander'], ['nubank', 'Nubank'], ['inter', 'Inter'], ['c6', 'C6 Bank'], ['outro', 'Outro']];
+  const bancoTipoDe = nome => { const n = String(nome || '').toLowerCase(); return /caixa/.test(n) ? 'caixa' : /bradesco/.test(n) ? 'bradesco' : /brasil|^bb$/.test(n) ? 'bb' : /ita[uú]/.test(n) ? 'itau' : /santander/.test(n) ? 'santander' : /nubank/.test(n) ? 'nubank' : /inter/.test(n) ? 'inter' : /c6/.test(n) ? 'c6' : 'outro'; };
+  function bancoLogo(tipo, z) {
+    z = z || 34; const sv = (bg, inner) => '<svg width="' + z + '" height="' + z + '" viewBox="0 0 40 40" style="flex:none;border-radius:9px"><rect width="40" height="40" rx="9" fill="' + bg + '"/>' + inner + '</svg>';
+    const txt = (t, c, fs) => '<text x="20" y="26" text-anchor="middle" font-family="Arial,sans-serif" font-weight="800" font-size="' + (fs || 15) + '" fill="' + (c || '#fff') + '">' + t + '</text>';
+    if (tipo === 'caixa') return sv('#005CA9', '<path d="M9 9 L18 20 L9 31 L15 31 L21 23.5 L27 31 L33 31 L24 20 L33 9 L27 9 L21 16.5 L15 9 Z" fill="#fff"/><path d="M21 16.5 L27 9 L33 9 L24 20 L21 16.5Z" fill="#F7941D"/>');
+    if (tipo === 'bradesco') return sv('#CC092F', '<rect x="8" y="12" width="24" height="17" rx="2" fill="#fff"/><path d="M8 12 L20 5 L32 12Z" fill="#fff"/><rect x="12" y="16" width="3" height="9" fill="#CC092F"/><rect x="18.5" y="16" width="3" height="9" fill="#CC092F"/><rect x="25" y="16" width="3" height="9" fill="#CC092F"/>');
+    if (tipo === 'bb') return sv('#FCFC30', txt('BB', '#0038A8', 17));
+    if (tipo === 'itau') return sv('#EC7000', txt('itaú', '#fff', 12));
+    if (tipo === 'santander') return sv('#EC0000', txt('S', '#fff', 20));
+    if (tipo === 'nubank') return sv('#8A05BE', txt('nu', '#fff', 17));
+    if (tipo === 'inter') return sv('#FF7A00', txt('inter', '#fff', 11));
+    if (tipo === 'c6') return sv('#242424', txt('C6', '#fff', 16));
+    return sv('#52525B', '<path d="M8 16 L20 8 L32 16Z M10 18 H30 V20 H10Z M12 21 H15 V30 H12Z M18.5 21 H21.5 V30 H18.5Z M25 21 H28 V30 H25Z M9 31 H31 V33 H9Z" fill="#fff"/>');
+  }
+  // acha/cria bancos a partir do que já existe no extrato; semeia o Bradesco para quem já usa a Caixa (pedido do dono). Só roda uma vez por pessoa.
+  function garantirBancos(d) {
+    let mu = false; if (!Array.isArray(d.bancos)) { d.bancos = []; mu = true; }
+    (d.extrato || []).forEach(l => {
+      if (l.bancoId && d.bancos.some(b => b.id === l.bancoId)) return;
+      const nome = (l.banco || '').trim() || 'Banco'; let b = d.bancos.find(x => norm(x.nome) === norm(nome));
+      if (!b) { b = { id: uid(), tipo: bancoTipoDe(nome), nome, agencia: '', conta: '', saldoIni: 0, saldoIniData: '' }; d.bancos.push(b); }
+      l.bancoId = b.id; mu = true;
+    });
+    if (!d.bancosSemeados) {
+      d.bancosSemeados = true; mu = true;
+      const cx = d.bancos.find(b => b.tipo === 'caixa');
+      if (cx) {
+        if (!cx.agencia && !cx.conta) { cx.agencia = '3053'; cx.conta = 'op. 3701 · 000599919528-0'; }
+        if (!d.bancos.some(b => b.tipo === 'bradesco')) d.bancos.push({ id: uid(), tipo: 'bradesco', nome: 'Bradesco', agencia: '3980', conta: '613583-8', saldoIni: 0, saldoIniData: '' });
+      }
+    }
+    return mu;
+  }
+  const saldoBanco = (d, b, mes) => { const fim = mes + '-31'; let s0 = cents(b.saldoIni || 0); (d.extrato || []).forEach(l => { if (l.bancoId === b.id && l.data <= fim && (!b.saldoIniData || l.data >= b.saldoIniData)) s0 += cents(l.valor); }); return s0 / 100; };
+  function abaBancos(d) {
+    const mes = fechMes(), sel = ST.bancoSel || '';
+    const cards = (d.bancos || []).map(b => {
+      const ls = (d.extrato || []).filter(l => l.bancoId === b.id && l.data.slice(0, 7) === mes), ent = ls.filter(l => l.valor > 0).reduce((a, l) => a + cents(l.valor), 0) / 100, sai = ls.filter(l => l.valor < 0).reduce((a, l) => a + cents(l.valor), 0) / 100, pend = ls.filter(l => !l.baixa && !l.classe).length, on = sel === b.id, sd = saldoBanco(d, b, mes);
+      return '<div onclick="kcbmPf.bancoSel(\'' + b.id + '\')" style="cursor:pointer;min-width:230px;flex:0 1 270px;border:' + (on ? '3px solid var(--teal)' : '2px solid var(--border)') + ';border-radius:12px;padding:11px 13px;background:var(--white)"><div style="display:flex;align-items:center;gap:10px">' + bancoLogo(b.tipo, 34) + '<div style="flex:1;min-width:0"><b>' + E(b.nome) + '</b>' + ((b.agencia || b.conta) ? '<div style="font-size:11.5px;color:var(--slate)">' + (b.agencia ? 'Ag. ' + E(b.agencia) : '') + (b.agencia && b.conta ? ' · ' : '') + (b.conta ? 'Conta ' + E(b.conta) : '') + '</div>' : '') + '</div><span onclick="event.stopPropagation()">' + B('✏️', "kcbmPf.bancoForm('" + b.id + "')", 'bo', 'Editar banco') + '</span></div>'
+        + '<div style="font-size:12.5px;line-height:1.55;margin-top:6px">Saldo em ' + mes.slice(5, 7) + '/' + mes.slice(0, 4) + ' <b style="color:' + cor(sd) + '">' + R$(sd) + '</b><br>Entradas <b style="color:var(--teal)">' + R$(ent) + '</b> · Saídas <b style="color:#dc2626">' + R$(sai) + '</b>' + (pend ? '<br><span style="color:#b45309">' + pend + ' pendente(s)</span>' : '') + '</div></div>';
+    }).join('');
+    return '<div style="display:flex;gap:12px;flex-wrap:wrap;align-items:stretch;margin-bottom:14px">' + cards + '<div onclick="kcbmPf.bancoForm()" style="cursor:pointer;min-width:150px;flex:0 1 190px;border:2px dashed var(--border);border-radius:12px;padding:11px 13px;display:flex;align-items:center;justify-content:center;gap:8px;color:var(--slate);font-weight:600">➕ Adicionar banco</div></div>'
+      + ((d.bancos || []).length ? '<div style="font-size:12px;color:var(--slate);margin:-4px 0 10px">Clique no banco para ver o extrato dele no mês. ' + (sel ? '' : '<b>Nenhum selecionado: mostrando todos.</b> ') + (sel ? B('Ver todos', "kcbmPf.bancoSel('')") : '') + '</div>' : '<div style="font-size:12.5px;color:var(--slate);margin-bottom:10px">Adicione o seu primeiro banco para importar extratos.</div>');
+  }
+  function abaExtrato(d) { return abaBancos(d) + abaExtratoLista(d); }
+  function abaExtratoLista(d) {
+    const mes = fechMes(), itens = (d.extrato || []).filter(x => x.data.slice(0, 7) === mes && (!ST.bancoSel || x.bancoId === ST.bancoSel)).sort((a, b) => a.data.localeCompare(b.data) || (a.criado || 0) - (b.criado || 0));
     const ent = itens.filter(x => x.valor > 0).reduce((a, x) => a + cents(x.valor), 0) / 100, sai = itens.filter(x => x.valor < 0).reduce((a, x) => a + cents(x.valor), 0) / 100;
     const linhas = itens.map(x => {
       const lanc = lancamentoTexto(x, x.banco), pend = !lanc;
@@ -438,10 +485,11 @@
     movExcluir(tipo, id) { if (!confirm('Excluir este lançamento?')) return; const dd = dadosAtual(); const x = dd[tipo].find(y => y.id === id); dd[tipo] = dd[tipo].filter(y => y.id !== id); if (x && x.extratoId) dd.extrato = dd.extrato.map(l => l.id === x.extratoId ? Object.assign({}, l, { classe: null }) : l); gravarDados(ST.pf, dd); render(); },
     // ── extrato ──
     extratoForm() {
-      modal('Lançar no extrato bancário', campo('Data', inp('kpfData', hoje(), 'date')) + campo('Banco / conta', inp('kpfBanco', '', 'text', 'maxlength="60" placeholder="Ex.: Caixa, Bradesco, Nubank..."')) + campo('Histórico', inp('kpfHist', '', 'text', 'maxlength="140"')) + campo('Tipo', sel('kpfTipo', [['sai', 'Saída (pagamento)'], ['ent', 'Entrada (recebimento)']], 'sai')) + campo('Valor (R$)', inp('kpfValor', '', 'text', 'inputmode="decimal"')),
-        m => { const v = num(val(m, 'kpfValor')); if (!val(m, 'kpfData') || !(v > 0)) { root.toast('Informe a data e um valor maior que zero.', 'err'); return false; } const dd = dadosAtual(); dd.extrato.push({ id: uid(), criado: Date.now(), data: val(m, 'kpfData'), banco: (val(m, 'kpfBanco') || '').trim(), hist: (val(m, 'kpfHist') || '').trim(), valor: val(m, 'kpfTipo') === 'sai' ? -v : v, baixa: null, classe: null }); gravarDados(ST.pf, dd); render(); });
+      modal('Lançar no extrato bancário', campo('Data', inp('kpfData', hoje(), 'date')) + (dadosAtual().bancos.length ? campo('Banco', sel('kpfBkSel', dadosAtual().bancos.map(b => [b.id, b.nome]), ST.bancoSel || dadosAtual().bancos[0].id)) : campo('Banco / conta', inp('kpfBanco', '', 'text', 'maxlength="60"'))) + campo('Histórico', inp('kpfHist', '', 'text', 'maxlength="140"')) + campo('Tipo', sel('kpfTipo', [['sai', 'Saída (pagamento)'], ['ent', 'Entrada (recebimento)']], 'sai')) + campo('Valor (R$)', inp('kpfValor', '', 'text', 'inputmode="decimal"')),
+        m => { const v = num(val(m, 'kpfValor')); if (!val(m, 'kpfData') || !(v > 0)) { root.toast('Informe a data e um valor maior que zero.', 'err'); return false; } const dd = dadosAtual(); dd.extrato.push({ id: uid(), criado: Date.now(), data: val(m, 'kpfData'), banco: ((dd.bancos.find(b => b.id === val(m, 'kpfBkSel')) || {}).nome || (val(m, 'kpfBanco') || '').trim()), bancoId: val(m, 'kpfBkSel') || '', hist: (val(m, 'kpfHist') || '').trim(), valor: val(m, 'kpfTipo') === 'sai' ? -v : v, baixa: null, classe: null }); const nb0 = baixaAutomatica(dd); if (nb0) root.toast(nb0 + ' baixa(s) automática(s).', 'ok'); gravarDados(ST.pf, dd); render(); });
     },
     async importarPdf() {
+      const d0 = dadosAtual(); if (!d0.bancos.length) { root.toast('Adicione um banco antes de importar o extrato.', 'err'); return; } const bk = d0.bancos.find(b => b.id === ST.bancoSel); if (!bk) { root.toast('Clique no cartão do banco (Caixa, Bradesco…) e depois importe o PDF dele.', 'err'); return; }
       const inpf = document.createElement('input'); inpf.type = 'file'; inpf.accept = 'application/pdf,.pdf';
       inpf.onchange = async () => {
         const f = inpf.files && inpf.files[0]; if (!f) return;
@@ -449,18 +497,18 @@
         root.toast('Lendo o extrato…', 'info');
         let r = null; try { const pdf = await pdfjsLib.getDocument({ data: await f.arrayBuffer() }).promise; r = await _lancctbParsearExtratoGenerico(pdf); } catch (e) { console.warn('PF: leitura do PDF', e); }
         if (!r || !r.lancamentos || !r.lancamentos.length) { modal('Não consegui ler este extrato', '<div style="font-size:13px;line-height:1.6">O leitor só aceita o extrato quando o <b>saldo confere</b> linha a linha — e neste PDF não conferiu (ou o formato ainda não é reconhecido).<br><br>Nada foi importado. <b>Me envie o modelo desse banco (Caixa, Bradesco…)</b> que eu ajusto o leitor. Enquanto isso dá para lançar à mão.</div>', null); return; }
-        const dd = dadosAtual(), ja = new Set(dd.extrato.map(l => l.data + '|' + cents(l.valor) + '|' + norm(l.hist)));
+        const dd = dadosAtual(), ja = new Set(dd.extrato.filter(l => l.bancoId === bk.id).map(l => l.data + '|' + cents(l.valor) + '|' + norm(l.hist)));
         const novas = r.lancamentos.map(x => ({ data: x.data, hist: String(x.historico || '').trim(), valor: x.valor_entrada > 0 ? x.valor_entrada : -(x.valor_saida || 0) })).filter(x => x.valor);
         const repetidas = novas.filter(x => ja.has(x.data + '|' + cents(x.valor) + '|' + norm(x.hist))).length;
         const bancos = ['Caixa Econômica', 'Bradesco', 'Itaú', 'Banco do Brasil', 'Santander', 'Nubank', 'Inter', 'C6 Bank', 'Outro'];
         const ent = novas.filter(x => x.valor > 0).reduce((a, x) => a + cents(x.valor), 0) / 100, sai = novas.filter(x => x.valor < 0).reduce((a, x) => a + cents(x.valor), 0) / 100;
         const corpo = '<div style="font-size:12.5px;margin-bottom:8px"><b>' + novas.length + '</b> lançamento(s) lidos · Entradas <b style="color:var(--teal)">' + R$(ent) + '</b> · Saídas <b style="color:#dc2626">' + R$(sai) + '</b>' + (r.observacao ? '<br><span style="color:var(--teal)">' + E(r.observacao) + '</span>' : '') + (repetidas ? '<br><span style="color:#b45309">' + repetidas + ' já existem neste extrato (mesma data, valor e histórico) e não serão repetidos.</span>' : '') + '</div>'
-          + campo('Banco deste extrato', sel('kpfBancoI', bancos.map(b => [b, b]), 'Caixa Econômica')) + campo('Se for “Outro”, digite o nome', inp('kpfBancoO', '', 'text', 'maxlength="60"'))
+          + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:13px">' + bancoLogo(bk.tipo, 26) + 'Será importado em <b>' + E(bk.nome) + '</b> (o PDF não é guardado, só as linhas).</div>'
           + '<div style="max-height:240px;overflow:auto;border:1px solid var(--border);border-radius:8px">' + tabela([{ t: 'Data' }, { t: 'Histórico' }, { t: 'Valor', r: 1 }], novas.slice(0, 300).map(x => '<tr>' + td(br(x.data)) + td(E(x.hist)) + '<td style="' + TD + ';text-align:right;color:' + cor(x.valor) + '">' + R$(x.valor) + '</td></tr>'), '') + '</div>' + (novas.length > 300 ? '<div style="font-size:11px;color:var(--slate)">Mostrando as 300 primeiras; todas serão importadas.</div>' : '');
         modal('Importar extrato — conferir', corpo, m => {
-          let banco = val(m, 'kpfBancoI'); if (banco === 'Outro') banco = (val(m, 'kpfBancoO') || '').trim() || 'Outro';
-          const d2 = dadosAtual(), ja2 = new Set(d2.extrato.map(l => l.data + '|' + cents(l.valor) + '|' + norm(l.hist))); let n = 0;
-          novas.forEach(x => { const k = x.data + '|' + cents(x.valor) + '|' + norm(x.hist); if (ja2.has(k)) return; ja2.add(k); d2.extrato.push({ id: uid(), criado: Date.now() + n, data: x.data, banco, hist: x.hist, valor: x.valor, baixa: null, classe: null }); n++; });
+          const banco = bk.nome;
+          const d2 = dadosAtual(), ja2 = new Set(d2.extrato.filter(l => l.bancoId === bk.id).map(l => l.data + '|' + cents(l.valor) + '|' + norm(l.hist))); let n = 0;
+          novas.forEach(x => { const k = x.data + '|' + cents(x.valor) + '|' + norm(x.hist); if (ja2.has(k)) return; ja2.add(k); d2.extrato.push({ id: uid(), criado: Date.now() + n, data: x.data, banco, bancoId: bk.id, hist: x.hist, valor: x.valor, baixa: null, classe: null }); n++; });
           const nb = baixaAutomatica(d2); gravarDados(ST.pf, d2); render(); root.toast(n + ' lançamento(s) importado(s)' + (nb ? ' · ' + nb + ' baixa(s) automática(s)' : '') + '. Agora é só classificar o que sobrou.', 'ok');
         }, 'Importar', 720);
       };
@@ -586,6 +634,23 @@
       const dd = dadosAtual(), it = dd[tipo].find(x => x.id === itemId), p = it && it.parcelas.find(q => q.n === n); if (!p || !p.pago || p.extratoId) return; p.pago = false; p.dataPago = null; delete p.baixaManual; gravarDados(ST.pf, dd); render();
     },
     baixaAuto() { const dd = dadosAtual(), n = baixaAutomatica(dd); if (n) { gravarDados(ST.pf, dd); render(); } root.toast(n ? n + ' linha(s) do extrato baixaram contas sozinhas.' : 'Nenhuma linha pendente bate exatamente com um vencimento.', n ? 'ok' : 'info'); },
+    bancoSel(id) { ST.bancoSel = id || ''; render(); },
+    bancoForm(id) {
+      const d = dadosAtual(), b = id ? d.bancos.find(x => x.id === id) : null;
+      const m = modal(b ? 'Editar banco' : 'Adicionar banco', campo('Banco', sel('kpfBkTipo', BANCOS_TIPOS, b ? b.tipo : 'caixa')) + '<div id="kpfBkLogo" style="margin:-4px 0 8px"></div>' + campo('Nome (como aparece no cartão)', inp('kpfBkNome', b ? b.nome : 'Caixa Econômica', 'text', 'maxlength="60"')) + campo('Agência (opcional)', inp('kpfBkAg', b ? b.agencia : '', 'text', 'maxlength="20"')) + campo('Conta (opcional)', inp('kpfBkCc', b ? b.conta : '', 'text', 'maxlength="40"')) + campo('Saldo inicial (R$)', inp('kpfBkSi', b ? String(b.saldoIni || 0).replace('.', ',') : '0', 'text', 'inputmode="decimal"'), 'Quanto havia na conta na data abaixo. O saldo do cartão = saldo inicial + os lançamentos do extrato depois dessa data.') + campo('Data do saldo inicial', inp('kpfBkSd', b ? b.saldoIniData : '', 'date'), 'Deixe em branco para somar todos os lançamentos do extrato.')
+        + (b ? '<div style="margin-top:10px">' + B('🗑 Excluir este banco', "kcbmPf.bancoExcluir('" + b.id + "')") + '</div>' : ''), mm => {
+        const nome = (val(mm, 'kpfBkNome') || '').trim(); if (!nome) { root.toast('Informe o nome do banco.', 'err'); return false; }
+        const dd = dadosAtual(), novo = { id: b ? b.id : uid(), tipo: val(mm, 'kpfBkTipo') || 'outro', nome, agencia: (val(mm, 'kpfBkAg') || '').trim(), conta: (val(mm, 'kpfBkCc') || '').trim(), saldoIni: num(val(mm, 'kpfBkSi')) || 0, saldoIniData: val(mm, 'kpfBkSd') || '' };
+        dd.bancos = b ? dd.bancos.map(x => x.id === b.id ? novo : x) : dd.bancos.concat([novo]); dd.extrato.forEach(l => { if (b && l.bancoId === b.id) l.banco = nome; }); if (!b) ST.bancoSel = novo.id; gravarDados(ST.pf, dd); render();
+      });
+      const lg = () => { m.querySelector('#kpfBkLogo').innerHTML = bancoLogo(val(m, 'kpfBkTipo'), 44); }; lg();
+      m.querySelector('#kpfBkTipo').onchange = () => { lg(); if (!b) { const t = BANCOS_TIPOS.find(x => x[0] === val(m, 'kpfBkTipo')); if (t && t[0] !== 'outro') m.querySelector('#kpfBkNome').value = t[1]; } };
+    },
+    bancoExcluir(id) {
+      const dd = dadosAtual(), n = dd.extrato.filter(l => l.bancoId === id).length;
+      if (n) { root.toast('Este banco tem ' + n + ' lançamento(s) no extrato. Exclua os lançamentos antes (nada é apagado por engano).', 'err'); return; }
+      if (!confirm('Excluir este banco?')) return; dd.bancos = dd.bancos.filter(b => b.id !== id); if (ST.bancoSel === id) ST.bancoSel = ''; gravarDados(ST.pf, dd); document.getElementById('kpfX') && document.getElementById('kpfX').click(); render();
+    },
     saldoCartaoEditar(itemId) {
       const d0 = dadosAtual(), it = d0.pagar.find(x => x.id === itemId); if (!it || !it.parcelas || !it.parcelas[0]) return; const p0 = it.parcelas[0], c0 = d0.cartoes.find(x => x.id === it.cartaoId); if (!c0) return;
       modal('Editar saldo inicial — ' + E(c0.nome), campo('Mês do vencimento', inp('kpfFmMes', p0.fatura, 'month'), 'Vence dia ' + c0.vencimento + ' desse mês.') + campo('Saldo inicial (R$)', inp('kpfFmVal', String(p0.valor).replace('.', ','), 'text', 'inputmode="decimal"')), m => {

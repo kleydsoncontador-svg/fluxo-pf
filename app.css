@@ -62,3 +62,5 @@ button,input,select{font-family:inherit}
 /* Telas grandes: amplia tudo (o texto fica pequeno demais em monitor largo) */
 @media (min-width:1400px){html{zoom:1.2}#pf-app{max-width:1500px}}
 @media (min-width:1800px){html{zoom:1.45}#pf-app{max-width:1500px}}
+
+.topo button.mini{padding:2px 7px;font-size:10.5px;border-radius:5px;letter-spacing:.03em}
