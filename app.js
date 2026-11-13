@@ -123,6 +123,22 @@
     var troca = function (n) { window.S.s('fpf_referencia', somaMes(window.S.fechAtual(), n)); desenharTopo(); window.pfRender && window.pfRender(); };
     document.getElementById('refAnt').onclick = function () { troca(-1); }; document.getElementById('refProx').onclick = function () { troca(1); };
   }
+  // ── sincronização entre aparelhos: ao voltar para o app e a cada 20 s, busca no banco o que foi digitado em outro aparelho (só redesenha se mudou e se você não está no meio de uma edição) ──
+  var sincronizando = false;
+  async function sincronizar() {
+    if (sincronizando || !usuario || pendentes > 0 || document.hidden) return;
+    if (document.querySelector('div[style*="z-index:99999"]')) return;
+    var ae = document.activeElement; if (ae && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)) return;
+    sincronizando = true;
+    try {
+      var antes = JSON.stringify(cache), velho = cache;
+      await carregarTudo();
+      if (JSON.stringify(cache) === antes) { cache = velho; } else { desenharTopo(); window.pfRender && window.pfRender(); }
+    } catch (e) { console.warn('sincronizar', e); } finally { sincronizando = false; }
+  }
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) sincronizar(); });
+  window.addEventListener('focus', sincronizar);
+  setInterval(sincronizar, 20000);
   async function abrirApp(user) {
     usuario = user;
     document.getElementById('tela-login').style.display = 'none'; document.getElementById('tela-app').style.display = 'block';

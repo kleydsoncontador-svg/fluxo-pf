@@ -276,8 +276,8 @@
   }
   // ── Extrato bancário ──
   // ── Bancos (cardzinhos do Extrato): símbolo, agência/conta (opcional) e saldo inicial. O PDF NÃO é guardado: só as linhas viram tabela. ──
-  const BANCOS_TIPOS = [['caixa', 'Caixa Econômica'], ['bradesco', 'Bradesco'], ['bb', 'Banco do Brasil'], ['itau', 'Itaú'], ['santander', 'Santander'], ['nubank', 'Nubank'], ['inter', 'Inter'], ['c6', 'C6 Bank'], ['outro', 'Outro']];
-  const bancoTipoDe = nome => { const n = String(nome || '').toLowerCase(); return /caixa/.test(n) ? 'caixa' : /bradesco/.test(n) ? 'bradesco' : /brasil|^bb$/.test(n) ? 'bb' : /ita[uú]/.test(n) ? 'itau' : /santander/.test(n) ? 'santander' : /nubank/.test(n) ? 'nubank' : /inter/.test(n) ? 'inter' : /c6/.test(n) ? 'c6' : 'outro'; };
+  const BANCOS_TIPOS = [['caixa', 'Caixa Econômica'], ['bradesco', 'Bradesco'], ['bb', 'Banco do Brasil'], ['itau', 'Itaú'], ['santander', 'Santander'], ['nubank', 'Nubank'], ['inter', 'Inter'], ['c6', 'C6 Bank'], ['mercadopago', 'Mercado Pago'], ['brb', 'BRB'], ['digio', 'Digio'], ['next', 'Next'], ['picpay', 'PicPay'], ['sicoob', 'Sicoob'], ['sicredi', 'Sicredi'], ['btg', 'BTG Pactual'], ['xp', 'XP'], ['safra', 'Safra'], ['pagbank', 'PagBank'], ['neon', 'Neon'], ['original', 'Banco Original'], ['outro', 'Outro']];
+  const bancoTipoDe = nome => { const n = String(nome || '').toLowerCase(); return /caixa/.test(n) ? 'caixa' : /bradesco/.test(n) ? 'bradesco' : /brasil|^bb$/.test(n) ? 'bb' : /ita[uú]/.test(n) ? 'itau' : /santander/.test(n) ? 'santander' : /nubank/.test(n) ? 'nubank' : /inter/.test(n) ? 'inter' : /c6/.test(n) ? 'c6' : /mercado\s*pago/.test(n) ? 'mercadopago' : /brb/.test(n) ? 'brb' : /digio/.test(n) ? 'digio' : /next/.test(n) ? 'next' : /picpay/.test(n) ? 'picpay' : /sicoob/.test(n) ? 'sicoob' : /sicredi/.test(n) ? 'sicredi' : /btg/.test(n) ? 'btg' : /xp/.test(n) ? 'xp' : /safra/.test(n) ? 'safra' : /pagbank|pagseguro/.test(n) ? 'pagbank' : /neon/.test(n) ? 'neon' : /original/.test(n) ? 'original' : 'outro'; };
   function bancoLogo(tipo, z) {
     z = z || 34; const sv = (bg, inner) => '<svg width="' + z + '" height="' + z + '" viewBox="0 0 40 40" style="flex:none;border-radius:9px"><rect width="40" height="40" rx="9" fill="' + bg + '"/>' + inner + '</svg>';
     const txt = (t, c, fs) => '<text x="20" y="26" text-anchor="middle" font-family="Arial,sans-serif" font-weight="800" font-size="' + (fs || 15) + '" fill="' + (c || '#fff') + '">' + t + '</text>';
@@ -289,6 +289,8 @@
     if (tipo === 'nubank') return sv('#8A05BE', txt('nu', '#fff', 17));
     if (tipo === 'inter') return sv('#FF7A00', txt('inter', '#fff', 11));
     if (tipo === 'c6') return sv('#242424', txt('C6', '#fff', 16));
+    const mapa = { mercadopago: ['#009EE3', 'MP', '#fff', 16], brb: ['#0033A0', 'BRB', '#fff', 13], digio: ['#0A2A6B', 'digio', '#00D1FF', 10], next: ['#00FF5F', 'next', '#000', 12], picpay: ['#11C76F', 'Pic', '#fff', 13], sicoob: ['#003641', 'sicoob', '#7DB61C', 9], sicredi: ['#3FA110', 'Sic', '#fff', 14], btg: ['#001E50', 'BTG', '#fff', 13], xp: ['#000', 'XP', '#FFD400', 17], safra: ['#001A4D', 'Safra', '#fff', 10], pagbank: ['#1BB99A', 'Pag', '#fff', 13], neon: ['#00E5E5', 'neon', '#000', 11], original: ['#00A857', 'Orig', '#fff', 11] };
+    if (mapa[tipo]) return sv(mapa[tipo][0], txt(mapa[tipo][1], mapa[tipo][2], mapa[tipo][3]));
     return sv('#52525B', '<path d="M8 16 L20 8 L32 16Z M10 18 H30 V20 H10Z M12 21 H15 V30 H12Z M18.5 21 H21.5 V30 H18.5Z M25 21 H28 V30 H25Z M9 31 H31 V33 H9Z" fill="#fff"/>');
   }
   // acha/cria bancos a partir do que já existe no extrato; semeia o Bradesco para quem já usa a Caixa (pedido do dono). Só roda uma vez por pessoa.
