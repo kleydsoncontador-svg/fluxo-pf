@@ -223,14 +223,14 @@
     const lista = lerLista();
     const linhas = lista.map(p => {
       const d = lerDados(p.id), m = fechMes() < mesInicio(d) ? mesInicio(d) : fechMes();
-      const sp = saldoMes(d, 'pagar', m, { semCartao: true }), sr = saldoMes(d, 'receber', m), fat = faturasQueVencemNoMes(d, m).reduce((a, f) => a + f.aberto, 0);
-      return '<tr style="cursor:pointer" onclick="kcbmPf.abrir(\'' + p.id + '\')"><td style="' + TD + ';font-weight:600">' + E(p.nome) + '</td>' + td(E(fmtCpf(p.cpf)) || '—') + td(R$(sp.final + fat), 1) + td(R$(sr.final), 1)
+      const sp = saldoMes(d, 'pagar', m), sr = saldoMes(d, 'receber', m), dif = Math.round((sr.final - sp.final) * 100) / 100;
+      return '<tr style="cursor:pointer" onclick="kcbmPf.abrir(\'' + p.id + '\')"><td style="' + TD + ';font-weight:600">' + E(p.nome) + '</td>' + td(E(fmtCpf(p.cpf)) || '—') + td(R$(sp.final), 1) + td(R$(sr.final), 1) + td('<b style="color:' + (dif < 0 ? '#dc2626' : '#16a34a') + '">' + R$(dif) + '</b>', 1)
         + '<td style="' + TD + ';text-align:right;white-space:nowrap" onclick="event.stopPropagation()">' + B('Abrir', "kcbmPf.abrir('" + p.id + "')", 'bp') + ' ' + B('✏️', "kcbmPf.editarPessoa('" + p.id + "')", 'bo', 'Editar nome/CPF') + ' ' + B('🗑', "kcbmPf.excluirPessoa('" + p.id + "')", 'bo', 'Excluir esta pessoa e todos os dados dela (pede confirmação)') + '</td></tr>';
     });
     el().innerHTML = '<div style="padding:18px 22px 40px"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px"><div style="font-size:1.3rem;font-weight:700">Pessoa Física</div>'
       + '<div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap">' + B('🏷 Tipos de gasto / receita', "kcbmPf.tela('tipos')") + B('👥 Fornecedores e clientes', "kcbmPf.tela('terceiros')") + B('⬇ Exportar dados', 'kcbmPf.exportar()', 'bo', 'Baixa um arquivo com tudo deste módulo (para levar ao Fluxo PF ou guardar como backup)') + B('+ Nova pessoa física', 'kcbmPf.novaPessoa()', 'bp') + '</div></div>'
-      + '<div style="font-size:12.5px;color:var(--slate);margin-bottom:10px">Cadastre a pessoa e abra para lançar contas a pagar/receber, extrato, cartões e ver o saldo. Os valores da lista são do Fechamento Atual (' + rotMes(fechMes()) + '): contas a pagar + faturas que vencem no mês, e contas a receber.</div>'
-      + tabela([{ t: 'Pessoa' }, { t: 'CPF' }, { t: 'A pagar (mês)', r: 1 }, { t: 'A receber (saldo)', r: 1 }, { t: '' }], linhas, 'Nenhuma pessoa física cadastrada. Clique em "+ Nova pessoa física".') + '</div>';
+      + '<div style="font-size:12.5px;color:var(--slate);margin-bottom:10px">Cadastre a pessoa e abra para lançar contas a pagar/receber, extrato, cartões e ver o saldo. Os valores são do mês do topo (' + rotMes(fechMes()) + '): tudo que ainda não foi pago ou recebido até o fim do mês, incluindo as faturas de cartão. Saldo total = a receber − a pagar (verde positivo, vermelho negativo).</div>'
+      + tabela([{ t: 'Pessoa' }, { t: 'CPF' }, { t: 'Saldo a pagar', r: 1 }, { t: 'Saldo a receber', r: 1 }, { t: 'Saldo total', r: 1 }, { t: '' }], linhas, 'Nenhuma pessoa física cadastrada. Clique em "+ Nova pessoa física".') + '</div>';
   }
   function formPessoa(p) { return campo('Nome *', inp('kpfNome', p ? p.nome : '', 'text', 'maxlength="120"')) + campo('CPF', inp('kpfCpf', p ? fmtCpf(p.cpf) : '', 'text', 'inputmode="numeric" maxlength="14" placeholder="000.000.000-00"')) + campo('Observação', inp('kpfObs', p ? p.obs : '', 'text', 'maxlength="200"')); }
   function lerFormPessoa(m) {
