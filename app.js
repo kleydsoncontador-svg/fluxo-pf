@@ -72,11 +72,19 @@
   }
 
   // ── backup: baixa tudo em um arquivo / restaura de um arquivo ──
-  function baixarBackup() {
+  function baixarBackup(auto) {
     var o = {}; Object.keys(cache).forEach(function (k) { if (/^(kcbm_pf_|fpf_)/.test(k)) o[k] = cache[k]; });
     var blob = new Blob([JSON.stringify({ app: 'fluxo-pf', em: new Date().toISOString(), dados: o }, null, 1)], { type: 'application/json' });
     var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'fluxo-pf-backup-' + new Date().toISOString().slice(0, 10) + '.json'; document.body.appendChild(a); a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 500);
-    window.toast('Backup baixado (' + Object.keys(o).length + ' itens).', 'ok');
+    window.toast((auto === true ? 'Backup diário salvo na pasta Downloads (' : 'Backup baixado (') + Object.keys(o).length + ' itens).', 'ok');
+  }
+  // backup automático: 1x por dia, na primeira vez que o app abre com dados
+  function backupDiario() {
+    try {
+      var hoje = new Date().toISOString().slice(0, 10); if (localStorage.getItem('fpf_bkp_dia') === hoje) return;
+      var tem = Object.keys(cache).some(function (k) { var v = cache[k]; return /^kcbm_pf_[a-z0-9]{6,}/.test(k) && v && ['extrato', 'pagar', 'receber', 'cartoes', 'entradas', 'gastos'].some(function (c) { return Array.isArray(v[c]) && v[c].length; }); });
+      if (!tem) return; localStorage.setItem('fpf_bkp_dia', hoje); baixarBackup(true);
+    } catch (e) { console.warn('backupDiario', e); }
   }
   function restaurarBackup() {
     var inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'application/json,.json';
@@ -128,7 +136,7 @@
       + '<button class="mini" id="btnPdf" title="Imprimir ou salvar esta tela em PDF">PDF</button><button class="mini" id="btnXls" title="Baixar esta tela em Excel">Excel</button>'
       + '<button id="btnBackup" title="Baixar uma cópia de todos os dados">⬇ Backup</button><button id="btnRestaurar" title="Importar dados de um arquivo de backup (ou do módulo antigo do KCBM)">⬆ Importar</button><button id="btnTema" title="Claro / escuro">◐</button><button id="btnSair">Sair</button></div>';
     document.getElementById('btnPdf').onclick = function () { exportarTela('pdf'); }; document.getElementById('btnXls').onclick = function () { exportarTela('xls'); };
-    document.getElementById('btnTema').onclick = alternarTema; document.getElementById('btnBackup').onclick = baixarBackup; document.getElementById('btnRestaurar').onclick = restaurarBackup;
+    document.getElementById('btnTema').onclick = alternarTema; document.getElementById('btnBackup').onclick = function () { baixarBackup(); }; document.getElementById('btnRestaurar').onclick = restaurarBackup;
     document.getElementById('btnSair').onclick = function () { sb.auth.signOut(); };
     var troca = function (n) { window.S.s('fpf_referencia', somaMes(window.S.fechAtual(), n)); desenharTopo(); window.pfRender && window.pfRender(); };
     document.getElementById('refAnt').onclick = function () { troca(-1); }; document.getElementById('refProx').onclick = function () { troca(1); };
@@ -154,7 +162,7 @@
     document.getElementById('tela-login').style.display = 'none'; document.getElementById('tela-app').style.display = 'block';
     document.getElementById('pf-app').innerHTML = '<div style="padding:40px;text-align:center;color:var(--slate)">Carregando seus dados…</div>';
     try { await carregarTudo(); } catch (e) { console.warn(e); document.getElementById('pf-app').innerHTML = '<div style="padding:40px;text-align:center;color:var(--neg)">Não consegui carregar os dados (' + (e.message || e) + '). Recarregue a página.</div>'; return; }
-    desenharTopo(); window.pfRender();
+    desenharTopo(); window.pfRender(); setTimeout(backupDiario, 1500);
   }
   function mostrarLogin(msg) { document.getElementById('tela-app').style.display = 'none'; document.getElementById('tela-login').style.display = 'flex'; cache = {}; carregado = false; if (msg) document.getElementById('loginErro').textContent = msg; }
 
