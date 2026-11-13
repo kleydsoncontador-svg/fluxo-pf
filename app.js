@@ -39,12 +39,14 @@
 
   // ── leitor de extrato em PDF (mesmo leitor genérico do KCBM: só aceita se o saldo conferir) ──
   window._lancctbParsearExtratoGenerico = async function (pdf) {
-    if (!window.ExtratoGenerico) return null;
+    if (!window.ExtratoGenerico && !window.ExtratoBancos) return null;
     var paginas = [];
     for (var p = 1; p <= pdf.numPages; p++) {
       var c = await (await pdf.getPage(p)).getTextContent();
       paginas.push({ num: p, items: c.items.filter(function (i) { return i.str && i.str.trim(); }).map(function (i) { return { str: i.str, x: i.transform[4], y: i.transform[5], w: i.width }; }) });
     }
+    if (window.ExtratoBancos) { var rb = window.ExtratoBancos.parse(paginas); if (rb) return { lancamentos: rb.lancamentos, saldoAnteriorDoc: null, saldoFinalDoc: null, layout: rb.layout, observacao: rb.observacao }; }
+    if (!window.ExtratoGenerico) return null;
     var r = null; try { r = window.ExtratoGenerico.parse(paginas); } catch (e) { console.warn('extrato genérico', e); return null; }
     if (!r || !r.lancamentos.length || !r.confere) return null;
     var cx = r.confereTotais && r.confereTotais.ok ? r.confereTotais.modo : null;
