@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Fluxo PF</title>
+<meta name="theme-color" content="#000000">
+<meta name="robots" content="noindex,nofollow">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" href="assets/icon-192.png">
+<link rel="apple-touch-icon" href="assets/icon-192.png">
+<link rel="stylesheet" href="app.css?v=__BUILD_ID__">
+</head>
+<body>
+<!-- LOGIN -->
+<div id="tela-login" style="display:none">
+  <div class="login-cartao">
+    <h1>FLUXO PF</h1>
+    <div class="sub">Controle de fluxo de caixa — acesso restrito</div>
+    <form id="formLogin" autocomplete="on">
+      <label for="lgEmail">E-MAIL</label>
+      <input id="lgEmail" type="email" autocomplete="username" inputmode="email" placeholder="seu@email.com" required>
+      <label for="lgSenha">SENHA</label>
+      <input id="lgSenha" type="password" autocomplete="current-password" placeholder="••••••••">
+      <button class="entrar" type="submit">Entrar</button>
+    </form>
+    <button class="link" id="lgLink" type="button">Entrar com um link enviado por e-mail</button>
+    <button class="link" id="lgEsqueci" type="button" style="margin-top:2px">Criar ou trocar a senha</button>
+    <div class="erro" id="loginErro" role="alert"></div>
+  </div>
+</div>
+<!-- APP -->
+<div id="tela-app" style="display:none">
+  <header class="topo" id="topo"></header>
+  <main id="pf-app"></main>
+</div>
+<div id="toast" role="status"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="supabase-config.js"></script>
+<script src="extrato-generico.js?v=__BUILD_ID__"></script>
+<script src="pf.js?v=__BUILD_ID__"></script>
+<script src="app.js?v=__BUILD_ID__"></script>
+</body>
+</html>

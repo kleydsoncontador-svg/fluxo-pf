@@ -1,0 +1,60 @@
+/* FLUXO PF — preto, branco e cinza. Claro por padrão no dia, escuro à noite; o botão do topo troca. */
+:root{
+  --bg:#F4F4F5; --white:#FFFFFF; --ink:#111111; --ink2:#111111; --border:#D4D4D8; --slate:#71717A;
+  --teal:#15803D; /* "positivo" (dinheiro que entra, seleção) */ --neg:#B91C1C; --r:8px;
+  --btn:#111111; --btnTxt:#FFFFFF; --topo:#000000; --topoTxt:#FFFFFF;
+}
+:root[data-tema="escuro"]{
+  --bg:#0A0A0A; --white:#18181B; --ink:#F4F4F5; --ink2:#27272A; --border:#3F3F46; --slate:#A1A1AA;
+  --teal:#4ADE80; --neg:#F87171; --btn:#F4F4F5; --btnTxt:#0A0A0A; --topo:#000000; --topoTxt:#FFFFFF;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-tema]){
+    --bg:#0A0A0A; --white:#18181B; --ink:#F4F4F5; --ink2:#27272A; --border:#3F3F46; --slate:#A1A1AA;
+    --teal:#4ADE80; --neg:#F87171; --btn:#F4F4F5; --btnTxt:#0A0A0A;
+  }
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;font-size:14px;line-height:1.4;-webkit-text-size-adjust:100%}
+button,input,select{font-family:inherit}
+/* topo */
+.topo{position:sticky;top:0;z-index:50;background:var(--topo);color:var(--topoTxt);display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:3px solid #fff}
+.topo .marca{font-weight:900;letter-spacing:.14em;font-size:15px;display:flex;align-items:center;gap:8px}
+.topo .marca i{display:inline-block;width:18px;height:18px;border-radius:50%;background:conic-gradient(#fff 0 50%,#52525B 0)}
+.topo .fim{margin-left:auto;display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.topo button{background:transparent;color:#fff;border:1px solid #52525B;border-radius:6px;padding:5px 10px;cursor:pointer;font-size:12.5px}
+.topo button:hover{background:#27272A}
+.ref{display:flex;align-items:center;gap:4px;font-size:12px}
+.ref b{min-width:84px;text-align:center;font-weight:600}
+/* botões usados pelo módulo */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:8px 14px;border-radius:var(--r);border:1px solid var(--border);background:var(--white);color:var(--ink);cursor:pointer;font-size:13px;font-weight:600;line-height:1.2}
+.btn.bsm{padding:5px 10px;font-size:12px}
+.btn.bo:hover{background:var(--bg)}
+.btn.bp{background:var(--btn);color:var(--btnTxt);border-color:var(--btn)}
+.btn.bp:hover{opacity:.88}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+#pf-app{max-width:1280px;margin:0 auto}
+/* login */
+#tela-login{min-height:100vh;display:flex;align-items:center;justify-content:center;background:#000;padding:20px}
+.login-cartao{background:#fff;color:#111;border-radius:14px;padding:28px 26px;width:100%;max-width:360px;box-shadow:0 10px 40px rgba(0,0,0,.6)}
+.login-cartao h1{margin:0 0 2px;font-size:22px;letter-spacing:.16em;text-align:center}
+.login-cartao .sub{text-align:center;color:#71717A;font-size:12px;margin-bottom:18px}
+.login-cartao label{display:block;font-size:11.5px;font-weight:700;color:#52525B;margin:10px 0 4px}
+.login-cartao input{width:100%;padding:10px 12px;border:1px solid #D4D4D8;border-radius:8px;font-size:15px}
+.login-cartao button.entrar{width:100%;margin-top:16px;padding:11px;border:0;border-radius:8px;background:#111;color:#fff;font-weight:700;font-size:15px;cursor:pointer}
+.login-cartao button.link{background:none;border:0;color:#52525B;text-decoration:underline;cursor:pointer;font-size:12.5px;margin-top:10px;width:100%}
+.login-cartao .erro{color:#B91C1C;font-size:12.5px;margin-top:10px;min-height:16px;text-align:center}
+.login-cartao hr{border:0;border-top:1px solid #E4E4E7;margin:16px 0 0}
+/* aviso */
+#toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:#111;color:#fff;border:1px solid #52525B;padding:10px 16px;border-radius:10px;z-index:200000;font-size:13px;max-width:92vw;display:none}
+#toast.err{background:#7F1D1D;border-color:#B91C1C}
+#toast.ok{background:#14532D;border-color:#166534}
+/* celular */
+@media (max-width:720px){
+  .topo{padding:8px 10px;gap:8px}
+  .topo .marca{font-size:13px}
+  #pf-app > div{padding:12px 10px 40px !important}
+  .btn{padding:8px 10px}
+  table{font-size:12px}
+}
