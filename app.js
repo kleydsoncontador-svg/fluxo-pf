@@ -71,6 +71,19 @@
     var novo = atual === 'escuro' ? 'claro' : 'escuro'; aplicarTema(novo); try { localStorage.setItem('fpf_tema', novo); } catch (e) {}
   }
 
+  // ── diagnóstico: lê direto do banco e mostra o que existe (só leitura) ──
+  async function diagnostico() {
+    var r = await sb.from('dados_app').select('key,value,updated_at');
+    var box = document.createElement('div'); box.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center;padding:20px';
+    var h = '<div style="background:#fff;color:#111;border-radius:12px;max-width:900px;width:100%;max-height:90vh;overflow:auto;padding:18px;font-size:13px"><div style="display:flex;justify-content:space-between;margin-bottom:10px"><b style="font-size:16px">O que está guardado no banco</b><button id="diagFecha">Fechar</button></div>';
+    if (r.error) h += '<p style="color:#b00">Erro: ' + (r.error.message || r.error) + '</p>';
+    else { h += '<table style="width:100%;border-collapse:collapse"><tr style="text-align:left"><th>Chave</th><th>Tamanho</th><th>Conteúdo</th><th>Atualizado</th></tr>';
+      (r.data || []).sort(function (a, b) { return a.key < b.key ? -1 : 1; }).forEach(function (x) {
+        var v = x.value, c = []; if (v && typeof v === 'object') { if (Array.isArray(v)) c.push(v.length + ' itens'); else Object.keys(v).forEach(function (k) { if (Array.isArray(v[k])) c.push(k + ': ' + v[k].length); }); } else c.push(String(v).slice(0, 40));
+        h += '<tr style="border-top:1px solid #ddd;vertical-align:top"><td style="padding:4px 6px;word-break:break-all">' + x.key + '</td><td style="padding:4px 6px">' + JSON.stringify(v).length + ' B</td><td style="padding:4px 6px">' + (c.join(' · ') || '—') + '</td><td style="padding:4px 6px">' + String(x.updated_at || '').replace('T', ' ').slice(0, 19) + '</td></tr>'; });
+      h += '</table>'; }
+    box.innerHTML = h + '</div>'; document.body.appendChild(box); box.querySelector('#diagFecha').onclick = function () { box.remove(); };
+  }
   // ── backup: baixa tudo em um arquivo / restaura de um arquivo ──
   function baixarBackup(auto) {
     var o = {}; Object.keys(cache).forEach(function (k) { if (/^(kcbm_pf_|fpf_)/.test(k)) o[k] = cache[k]; });
@@ -133,9 +146,9 @@
     var ref = window.S.fechAtual();
     document.getElementById('topo').innerHTML = '<div class="marca"><i></i>FLUXO PF</div><div class="fim">'
       + '<div class="ref" title="Mês de referência: o saldo e a projeção começam por ele"><button id="refAnt" aria-label="Mês anterior">‹</button><b>' + ref.slice(5, 7) + '/' + ref.slice(0, 4) + '</b><button id="refProx" aria-label="Próximo mês">›</button></div>'
-      + '<button class="mini" id="btnPdf" title="Imprimir ou salvar esta tela em PDF">PDF</button><button class="mini" id="btnXls" title="Baixar esta tela em Excel">Excel</button>'
+      + '<button class="mini" id="btnPdf" title="Imprimir ou salvar esta tela em PDF">PDF</button><button class="mini" id="btnXls" title="Baixar esta tela em Excel">Excel</button><button class="mini" id="btnDiag" title="Mostra o que está guardado no banco">Dados</button>'
       + '<button id="btnBackup" title="Baixar uma cópia de todos os dados">⬇ Backup</button><button id="btnRestaurar" title="Importar dados de um arquivo de backup (ou do módulo antigo do KCBM)">⬆ Importar</button><button id="btnTema" title="Claro / escuro">◐</button><button id="btnSair">Sair</button></div>';
-    document.getElementById('btnPdf').onclick = function () { exportarTela('pdf'); }; document.getElementById('btnXls').onclick = function () { exportarTela('xls'); };
+    document.getElementById('btnPdf').onclick = function () { exportarTela('pdf'); }; document.getElementById('btnXls').onclick = function () { exportarTela('xls'); }; document.getElementById('btnDiag').onclick = diagnostico;
     document.getElementById('btnTema').onclick = alternarTema; document.getElementById('btnBackup').onclick = function () { baixarBackup(); }; document.getElementById('btnRestaurar').onclick = restaurarBackup;
     document.getElementById('btnSair').onclick = function () { sb.auth.signOut(); };
     var troca = function (n) { window.S.s('fpf_referencia', somaMes(window.S.fechAtual(), n)); desenharTopo(); window.pfRender && window.pfRender(); };
