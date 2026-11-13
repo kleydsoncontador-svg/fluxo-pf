@@ -17,6 +17,14 @@
     s: function (k, v) {
       if (v == null) v = {};
       if (!carregado) { window.toast('Os dados ainda não carregaram — não salvei nada para não apagar o que existe.', 'err'); return; }
+      // trava anti-apagão: nunca deixa um cadastro cheio virar vazio de uma vez
+      var vel = cache[k];
+      if (/^kcbm_pf_/.test(k) && vel && typeof vel === 'object' && !Array.isArray(vel)) {
+        var CH = ['extrato', 'bancos', 'pagar', 'receber', 'cartoes', 'entradas', 'gastos'], tem = function (o) { return CH.some(function (c) { return Array.isArray(o[c]) && o[c].length; }); };
+        if (tem(vel) && !tem(v)) { window.toast('Bloqueei uma gravação que apagaria todos os dados. Recarregue a página.', 'err'); return; }
+        // cópia diária do estado anterior (rede de segurança): bkp_AAAA-MM-DD_<chave>
+        if (tem(vel)) { var bk = 'bkp_' + new Date().toISOString().slice(0, 10) + '_' + k; if (!(bk in cache)) { cache[bk] = vel; sb.from('dados_app').upsert({ key: bk, value: vel, updated_at: new Date().toISOString() }).then(function () {}, function () {}); } }
+      }
       cache[k] = v; pendentes++;
       sb.from('dados_app').upsert({ key: k, value: v, updated_at: new Date().toISOString() }).then(function (r) {
         pendentes--; if (r.error) { console.warn('Fluxo PF: não gravou', k, r.error); window.toast('Não consegui salvar no banco (' + (r.error.message || 'erro') + '). Confira a internet e tente de novo.', 'err'); }
