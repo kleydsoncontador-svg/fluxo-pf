@@ -107,17 +107,26 @@
   }
   // ── backup: baixa tudo em um arquivo / restaura de um arquivo ──
   function baixarBackup(auto) {
-    var o = {}; Object.keys(cache).forEach(function (k) { if (/^(kcbm_pf_|fpf_)/.test(k)) o[k] = cache[k]; });
+    var o = dadosParaBackup();
     var blob = new Blob([JSON.stringify({ app: 'fluxo-pf', em: new Date().toISOString(), dados: o }, null, 1)], { type: 'application/json' });
-    var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'fluxo-pf-backup-' + new Date().toISOString().slice(0, 10) + '.json'; document.body.appendChild(a); a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+    var a = document.createElement('a'); a.href = URL.createObjectURL(blob); var _d = new Date(), _p = function (n) { return String(n).padStart(2, '0'); }; a.download = 'fluxo-pf-backup-' + _d.getFullYear() + '-' + _p(_d.getMonth() + 1) + '-' + _p(_d.getDate()) + (auto === true ? '-' + _p(_d.getHours()) + _p(_d.getMinutes()) : '') + '.json'; document.body.appendChild(a); a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 500);
     window.toast((auto === true ? 'Backup diário salvo na pasta Downloads (' : 'Backup baixado (') + Object.keys(o).length + ' itens).', 'ok');
   }
-  // backup automático: 1x por dia, na primeira vez que o app abre com dados
+  // backup automático no aparelho: baixa um arquivo sozinho quando o app abre e os dados MUDARAM desde o último backup, com pelo menos 4 h de intervalo e no máximo 3 por dia (data local)
+  function dadosParaBackup() { var o = {}; Object.keys(cache).forEach(function (k) { if (/^(kcbm_pf_|fpf_)/.test(k)) o[k] = cache[k]; }); return o; }
+  function hashTexto(t) { var h = 5381; for (var i = 0; i < t.length; i++) h = ((h << 5) + h + t.charCodeAt(i)) | 0; return String(h) + ':' + t.length; }
   function backupDiario() {
     try {
-      var hoje = new Date().toISOString().slice(0, 10); if (localStorage.getItem('fpf_bkp_dia') === hoje) return;
-      var tem = Object.keys(cache).some(function (k) { var v = cache[k]; return /^kcbm_pf_[a-z0-9]{6,}/.test(k) && v && ['extrato', 'pagar', 'receber', 'cartoes', 'entradas', 'gastos'].some(function (c) { return Array.isArray(v[c]) && v[c].length; }); });
-      if (!tem) return; localStorage.setItem('fpf_bkp_dia', hoje); baixarBackup(true);
+      var tem = Object.keys(cache).some(function (k) { var v = cache[k]; return /^kcbm_pf_[a-z0-9]{6,}/.test(k) && v && ['extrato', 'pagar', 'receber', 'cartoes', 'entradas', 'gastos', 'contratos'].some(function (c) { return Array.isArray(v[c]) && v[c].length; }); });
+      if (!tem) return;
+      var ag = new Date(), dia = ag.getFullYear() + '-' + String(ag.getMonth() + 1).padStart(2, '0') + '-' + String(ag.getDate()).padStart(2, '0');
+      var ult = {}; try { ult = JSON.parse(localStorage.getItem('fpf_bkp_ult') || '{}'); } catch (e) {}
+      var h = hashTexto(JSON.stringify(dadosParaBackup()));
+      if (ult.h === h) return;                                             // nada mudou desde o último backup
+      if (ult.t && ag.getTime() - ult.t < 4 * 3600 * 1000) return;         // no mínimo 4 h entre backups
+      var n = (ult.dia === dia) ? (ult.n || 0) : 0; if (n >= 3) return;     // no máximo 3 por dia
+      baixarBackup(true);
+      localStorage.setItem('fpf_bkp_ult', JSON.stringify({ t: ag.getTime(), h: h, dia: dia, n: n + 1 }));
     } catch (e) { console.warn('backupDiario', e); }
   }
   function restaurarBackup() {
