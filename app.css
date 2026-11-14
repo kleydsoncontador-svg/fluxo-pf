@@ -101,3 +101,14 @@ button,input,select{font-family:inherit}
 /* tema escuro: logos com forma própria ficam sem o fundo branco ao redor */
 :root[data-tema="escuro"] img.kpfLP{background:transparent !important}
 @media (prefers-color-scheme: dark){:root:not([data-tema]) img.kpfLP{background:transparent !important}}
+
+/* botões menores dentro das tabelas (cabem Pagar/Receber/Parcelas/lixeira numa linha) */
+td .btn.bsm,td .btn{padding:3px 8px;font-size:11.5px;min-height:0;gap:4px;white-space:nowrap}
+td .btn svg{width:14px;height:14px}
+/* barras de rolagem e campos nativos seguem o tema (escuro no modo escuro) */
+:root{color-scheme:light}
+:root[data-tema="escuro"]{color-scheme:dark}
+@media (prefers-color-scheme: dark){:root:not([data-tema]){color-scheme:dark}}
+*{scrollbar-color:var(--slate) var(--bg)}
+.kpfCarr,div[style*="overflow:auto"]{scrollbar-color:var(--slate) var(--bg)}
+input,select,textarea{color-scheme:inherit}
