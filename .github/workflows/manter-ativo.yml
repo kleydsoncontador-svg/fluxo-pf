@@ -7,4 +7,6 @@ jobs:
   ping:
     runs-on: ubuntu-latest
     steps:
-      - run: curl -s -o /dev/null -w "%{http_code}\n" "https://zwcxheqcwtpevqcrrcws.supabase.co/rest/v1/" -H "apikey: sb_publishable_yn67qDMo_emUGMefo052zQ_xT558bxF"
+      - name: Acordar o banco
+        run: |
+          curl -s -o /dev/null -w "%{http_code}\n" "https://zwcxheqcwtpevqcrrcws.supabase.co/rest/v1/" -H "apikey: sb_publishable_yn67qDMo_emUGMefo052zQ_xT558bxF"
