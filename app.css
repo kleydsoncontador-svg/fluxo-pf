@@ -50,13 +50,46 @@ button,input,select{font-family:inherit}
 #toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:#111;color:#fff;border:1px solid #52525B;padding:10px 16px;border-radius:10px;z-index:200000;font-size:13px;max-width:92vw;display:none}
 #toast.err{background:#7F1D1D;border-color:#B91C1C}
 #toast.ok{background:#14532D;border-color:#166534}
-/* celular */
+/* menu do topo: no computador fica tudo na barra (display:contents); no celular vira o menu ⋯ */
+.menuTopo{display:contents}
+.soCel,.kpfTab .sh{display:none}
+/* celular: aparência de aplicativo */
 @media (max-width:720px){
-  .topo{padding:8px 10px;gap:8px}
+  html{zoom:1 !important;-webkit-tap-highlight-color:transparent}
+  body{overscroll-behavior-y:contain;padding-bottom:env(safe-area-inset-bottom)}
+  input,select,textarea{font-size:16px !important}
+  .topo{padding:calc(8px + env(safe-area-inset-top)) 10px 8px;gap:8px}
   .topo .marca{font-size:13px}
-  #pf-app > div{padding:12px 10px 40px !important}
-  .btn{padding:8px 10px}
-  table{font-size:12px}
+  .topo .fim{flex-wrap:nowrap}
+  .soCel{display:inline-block !important;font-size:18px !important;padding:2px 11px !important;line-height:1.2}
+  .menuTopo{display:none;position:fixed;top:calc(52px + env(safe-area-inset-top));right:8px;z-index:300;background:#111;border:1px solid #52525B;border-radius:12px;padding:8px;flex-direction:column;gap:6px;min-width:180px;box-shadow:0 10px 30px rgba(0,0,0,.6)}
+  .menuTopo.aberto{display:flex}
+  .menuTopo button,.menuTopo button.mini{font-size:14px !important;padding:11px 14px !important;text-align:left;width:100%;border-radius:8px}
+  #pf-app > div{padding:12px 10px 96px !important}
+  .btn{padding:10px 12px;min-height:40px}
+  .btn.bsm{padding:8px 11px;font-size:12.5px;min-height:36px}
+  /* abas viram a barra de baixo, como em apps */
+  .kpfTabs{position:fixed !important;left:0;right:0;bottom:0;z-index:150;margin:0 !important;gap:0 !important;flex-wrap:nowrap !important;overflow-x:auto;background:var(--white);border-top:1px solid var(--border) !important;border-bottom:0 !important;padding-bottom:env(safe-area-inset-bottom)}
+  .kpfTab{flex:1 0 auto;display:flex !important;flex-direction:column;align-items:center;gap:2px;border:0 !important;border-top:3px solid transparent !important;border-radius:0 !important;background:transparent !important;padding:7px 10px 6px !important;font-size:10.5px !important;min-width:64px}
+  .kpfTab[style*="3px solid"]{border-top-color:var(--teal) !important;background:var(--bg) !important}
+  .kpfTab .kpfI{font-size:18px;line-height:1}
+  .kpfTab .kpfI svg{width:22px;height:20px}
+  .kpfTab .lg{display:none}
+  .kpfTab .sh{display:inline}
+  /* tabelas viram cartões empilhados */
+  table.tabCard thead{display:none}
+  table.tabCard,table.tabCard>tbody{display:block;width:100%}
+  table.tabCard>tbody>tr{display:block;border:1px solid var(--border);border-radius:12px;margin:8px 0;padding:6px 12px;background:var(--white)}
+  table.tabCard>tbody>tr>td{display:flex !important;justify-content:space-between;align-items:center;gap:12px;border:0 !important;padding:4px 0 !important;text-align:right !important;white-space:normal !important;font-size:13.5px !important}
+  table.tabCard>tbody>tr>td::before{content:attr(data-label);color:var(--slate);font-size:11.5px;text-align:left;flex:none;max-width:42%}
+  table.tabCard>tbody>tr>td[data-label=""]::before{display:none}
+  table.tabCard>tbody>tr>td[colspan]{display:block !important;text-align:left !important;overflow-x:auto}
+  table.tabCard>tbody>tr>td:empty{display:none !important}
+  div:has(> table.tabCard){max-height:none !important;overflow:visible !important;border:0 !important;border-radius:0 !important}
+  /* janelas (modais) ocupam a tela de baixo */
+  #kpfModal{padding:0 !important;align-items:flex-end !important}
+  #kpfModal > div{max-width:none !important;border-radius:18px 18px 0 0 !important;max-height:94vh;overflow:auto;padding-bottom:calc(18px + env(safe-area-inset-bottom)) !important}
+  #toast{bottom:calc(84px + env(safe-area-inset-bottom))}
 }
 
 /* Telas grandes: amplia tudo (o texto fica pequeno demais em monitor largo) */

@@ -2,7 +2,7 @@
    O app só abre com login; o cadastro público de usuários fica DESLIGADO no Supabase e as regras de acesso (RLS) só deixam o e-mail do dono ler/gravar (a trava está no banco, não no código do site). */
 (function () {
   'use strict';
-  var sb = null, usuario = null, cache = {}, pendentes = 0, carregado = false;
+  var sb = null, usuario = null, cache = {}, pendentes = 0, carregado = false, stamps = {}, filas = {}, geracao = 0;
 
   // ── aviso na tela (o módulo usa toast(msg, tipo)) ──
   var tt = null;
@@ -25,10 +25,8 @@
         // cópia diária do estado anterior (rede de segurança): bkp_AAAA-MM-DD_<chave>
         if (tem(vel)) { var bk = 'bkp_' + new Date().toISOString().slice(0, 10) + '_' + k; if (!(bk in cache)) { cache[bk] = vel; sb.from('dados_app').upsert({ key: bk, value: vel, updated_at: new Date().toISOString() }).then(function () {}, function () {}); } }
       }
-      cache[k] = v; pendentes++;
-      sb.from('dados_app').upsert({ key: k, value: v, updated_at: new Date().toISOString() }).then(function (r) {
-        pendentes--; if (r.error) { console.warn('Fluxo PF: não gravou', k, r.error); window.toast('Não consegui salvar no banco (' + (r.error.message || 'erro') + '). Confira a internet e tente de novo.', 'err'); }
-      }, function (e) { pendentes--; console.warn(e); window.toast('Falha de rede ao salvar. Tente de novo.', 'err'); });
+      cache[k] = v; pendentes++; var ger = geracao;
+      filas[k] = (filas[k] || Promise.resolve()).then(function () { return gravar(k, v, ger); }).catch(function (e) { console.warn(e); window.toast('Falha de rede ao salvar. Tente de novo.', 'err'); }).then(function () { pendentes--; });
     },
     fechAtual: function () { var m = cache['fpf_referencia']; return (typeof m === 'string' && /^\d{4}-\d{2}$/.test(m)) ? m : mesHoje(); },
     chaves: function () { return Object.keys(cache); }
@@ -36,15 +34,38 @@
   function mesHoje() { var d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); }
   function somaMes(m, n) { var y = +m.slice(0, 4), mm = +m.slice(5, 7) - 1 + n, d = new Date(y, mm, 1); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); }
 
-  async function carregarTudo() {
-    var novo = {}, de = 0; // carrega num objeto à parte e só troca no fim: nunca deixa o app ver dados pela metade
+  // Gravação com trava de versão: só grava se ninguém (outro aparelho) mudou o mesmo item desde que este aparelho o leu.
+  // Se mudou, NÃO sobrescreve: recarrega a versão mais nova e avisa. Assim um celular/aba desatualizado nunca apaga o que foi feito em outro lugar.
+  async function gravar(k, v, ger) {
+    if (ger !== geracao) return; // houve conflito depois deste pedido: descarta (estava baseado em dados velhos)
+    var agora = new Date().toISOString(), st = stamps[k], r;
+    if (st) {
+      r = await sb.from('dados_app').update({ value: v, updated_at: agora }).eq('key', k).eq('updated_at', st).select('updated_at');
+      if (r.error) { window.toast('Não consegui salvar no banco (' + (r.error.message || 'erro') + '). Confira a internet e tente de novo.', 'err'); return; }
+      if (!r.data || !r.data.length) { await conflito(); return; }
+      stamps[k] = r.data[0].updated_at;
+    } else {
+      r = await sb.from('dados_app').insert({ key: k, value: v, updated_at: agora }).select('updated_at');
+      if (r.error) { if (r.error.code === '23505') { await conflito(); return; } window.toast('Não consegui salvar no banco (' + (r.error.message || 'erro') + ').', 'err'); return; }
+      stamps[k] = (r.data && r.data[0]) ? r.data[0].updated_at : agora;
+    }
+  }
+  async function conflito() {
+    geracao++;
+    window.toast('Outro aparelho alterou estes dados antes de você. Carreguei a versão mais nova — refaça a última alteração.', 'err');
+    try { await carregarTudo(true); desenharTopo(); window.pfRender && window.pfRender(); } catch (e) { console.warn(e); }
+  }
+
+  async function carregarTudo(forcar) {
+    var novo = {}, nst = {}, de = 0; // carrega num objeto à parte e só troca no fim: nunca deixa o app ver dados pela metade
     for (;;) {
-      var r = await sb.from('dados_app').select('key,value').range(de, de + 999);
+      var r = await sb.from('dados_app').select('key,value,updated_at').range(de, de + 999);
       if (r.error) throw r.error;
-      (r.data || []).forEach(function (x) { novo[x.key] = x.value; });
+      (r.data || []).forEach(function (x) { novo[x.key] = x.value; nst[x.key] = x.updated_at; });
       if ((r.data || []).length < 1000) break; de += 1000;
     }
-    cache = novo; carregado = true;
+    if (carregado && pendentes > 0 && !forcar) return; // o usuário salvou algo durante a busca: não troca a memória por uma versão que ainda não tem a alteração
+    cache = novo; stamps = nst; carregado = true;
   }
 
   // ── leitor de extrato em PDF (mesmo leitor genérico do KCBM: só aceita se o saldo conferir) ──
@@ -146,8 +167,10 @@
     var ref = window.S.fechAtual();
     document.getElementById('topo').innerHTML = '<div class="marca"><i></i>FLUXO PF</div><div class="fim">'
       + '<div class="ref" title="Mês de referência: o saldo e a projeção começam por ele"><button id="refAnt" aria-label="Mês anterior">‹</button><b>' + ref.slice(5, 7) + '/' + ref.slice(0, 4) + '</b><button id="refProx" aria-label="Próximo mês">›</button></div>'
-      + '<button class="mini" id="btnPdf" title="Imprimir ou salvar esta tela em PDF">PDF</button><button class="mini" id="btnXls" title="Baixar esta tela em Excel">Excel</button><button class="mini" id="btnDiag" title="Mostra o que está guardado no banco">Dados</button>'
-      + '<button id="btnBackup" title="Baixar uma cópia de todos os dados">⬇ Backup</button><button id="btnRestaurar" title="Importar dados de um arquivo de backup (ou do módulo antigo do KCBM)">⬆ Importar</button><button id="btnTema" title="Claro / escuro">◐</button><button id="btnSair">Sair</button></div>';
+      + '<button id="btnMenu" class="soCel" aria-label="Menu">⋯</button><div class="menuTopo" id="menuTopo"><button class="mini" id="btnPdf" title="Imprimir ou salvar esta tela em PDF">PDF</button><button class="mini" id="btnXls" title="Baixar esta tela em Excel">Excel</button><button class="mini" id="btnDiag" title="Mostra o que está guardado no banco">Dados</button>'
+      + '<button id="btnBackup" title="Baixar uma cópia de todos os dados">⬇ Backup</button><button id="btnRestaurar" title="Importar dados de um arquivo de backup (ou do módulo antigo do KCBM)">⬆ Importar</button><button id="btnTema" title="Claro / escuro">◐</button><button id="btnSair">Sair</button></div></div>';
+    document.getElementById('btnMenu').onclick = function (ev) { ev.stopPropagation(); document.getElementById('menuTopo').classList.toggle('aberto'); };
+    document.getElementById('menuTopo').onclick = function () { this.classList.remove('aberto'); };
     document.getElementById('btnPdf').onclick = function () { exportarTela('pdf'); }; document.getElementById('btnXls').onclick = function () { exportarTela('xls'); }; document.getElementById('btnDiag').onclick = diagnostico;
     document.getElementById('btnTema').onclick = alternarTema; document.getElementById('btnBackup').onclick = function () { baixarBackup(); }; document.getElementById('btnRestaurar').onclick = restaurarBackup;
     document.getElementById('btnSair').onclick = function () { sb.auth.signOut(); };
