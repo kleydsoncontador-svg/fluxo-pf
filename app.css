@@ -112,3 +112,6 @@ td .btn svg{width:14px;height:14px}
 *{scrollbar-color:var(--slate) var(--bg)}
 .kpfCarr,div[style*="overflow:auto"]{scrollbar-color:var(--slate) var(--bg)}
 input,select,textarea{color-scheme:inherit}
+
+/* lápis de editar dos cartões: pequenininho */
+.kpfEdit .btn,.kpfEdit button{padding:1px 6px;font-size:10.5px;min-height:0;line-height:1.25;border-radius:6px}
