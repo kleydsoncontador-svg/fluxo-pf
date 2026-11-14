@@ -97,3 +97,7 @@ button,input,select{font-family:inherit}
 @media (min-width:1800px){html{zoom:1.45}#pf-app{max-width:1500px}}
 
 .topo button.mini{padding:2px 7px;font-size:10.5px;border-radius:5px;letter-spacing:.03em}
+
+/* tema escuro: logos com forma própria ficam sem o fundo branco ao redor */
+:root[data-tema="escuro"] img.kpfLP{background:transparent !important}
+@media (prefers-color-scheme: dark){:root:not([data-tema]) img.kpfLP{background:transparent !important}}
