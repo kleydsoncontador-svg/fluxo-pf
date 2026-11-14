@@ -125,6 +125,15 @@
     inp.onchange = async function () {
       var f = inp.files && inp.files[0]; if (!f) return;
       var j; try { j = JSON.parse(await f.text()); } catch (e) { window.toast('Esse arquivo não é um backup válido.', 'err'); return; }
+      if (j && j.app === 'fluxo-pf-adicionar-cartoes' && Array.isArray(j.cartoes)) { // acrescenta cartões na 1ª pessoa, sem apagar nada
+        var lista = window.S.g('kcbm_pf_lista') || [], pid = lista[0] && lista[0].id; if (!pid) { window.toast('Cadastre a pessoa antes.', 'err'); return; }
+        var dp = JSON.parse(JSON.stringify(window.S.g('kcbm_pf_' + pid) || {})); dp.cartoes = Array.isArray(dp.cartoes) ? dp.cartoes : [];
+        var tem = dp.cartoes.map(function (c) { return String(c.nome || '').toLowerCase().trim(); }), novos = j.cartoes.filter(function (c) { return tem.indexOf(String(c.nome || '').toLowerCase().trim()) < 0; });
+        if (!novos.length) { window.toast('Esses cartões já existem. Nada foi adicionado.', 'ok'); return; }
+        if (!confirm('Adicionar ' + novos.length + ' cartão(ões) novo(s)?\n\n' + novos.map(function (c) { return '• ' + c.nome; }).join('\n') + '\n\nNada do que você já tem será alterado.')) return;
+        dp.cartoes = dp.cartoes.concat(novos); window.S.s('kcbm_pf_' + pid, dp);
+        setTimeout(function () { window.pfRender && window.pfRender(); }, 400); window.toast(novos.length + ' cartão(ões) adicionado(s).', 'ok'); return;
+      }
       var d = j && j.dados; if (!d || typeof d !== 'object') { window.toast('Esse arquivo não tem dados do Fluxo PF/KCBM.', 'err'); return; }
       var ks = Object.keys(d).filter(function (k) { return /^(kcbm_pf_|fpf_)/.test(k); });
       if (!ks.length) { window.toast('Nada para importar nesse arquivo.', 'err'); return; }
