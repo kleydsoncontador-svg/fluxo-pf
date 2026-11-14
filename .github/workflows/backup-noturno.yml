@@ -1,30 +1,36 @@
-name: Backup noturno (criptografado)
+name: Backup automático do Fluxo PF
+
 on:
   schedule:
-    - cron: '30 6 * * *'
-  workflow_dispatch:
+    - cron: '0 */6 * * *'   # a cada 6 horas
+  workflow_dispatch: {}      # também dá para rodar na mão, pela aba Actions
+
 jobs:
   backup:
     runs-on: ubuntu-latest
     steps:
-      - name: Confere os segredos
-        env:
-          CHAVE: ${{ secrets.SUPABASE_SERVICE_KEY }}
-          SENHA: ${{ secrets.BACKUP_SENHA }}
-        run: |
-          if [ -z "$CHAVE" ] || [ -z "$SENHA" ]; then echo "Faltam os segredos SUPABASE_SERVICE_KEY e/ou BACKUP_SENHA (Settings > Secrets and variables > Actions)."; exit 1; fi
-      - name: Baixa e criptografa
-        env:
-          CHAVE: ${{ secrets.SUPABASE_SERVICE_KEY }}
-          SENHA: ${{ secrets.BACKUP_SENHA }}
-        run: |
-          set -e
-          curl -sf "https://zwcxheqcwtpevqcrrcws.supabase.co/rest/v1/dados_app?select=*" -H "apikey: $CHAVE" -H "Authorization: Bearer $CHAVE" -o dados.json
-          test "$(wc -c < dados.json)" -gt 100
-          openssl enc -aes-256-cbc -pbkdf2 -salt -in dados.json -out backup.enc -pass env:SENHA
-          rm dados.json
-      - uses: actions/upload-artifact@v4
+      - name: Código do site
+        uses: actions/checkout@v4
+
+      - name: Repositório privado de backups
+        uses: actions/checkout@v4
         with:
-          name: fluxo-pf-backup-criptografado
-          path: backup.enc
-          retention-days: 90
+          repository: kleydsoncontador-svg/fluxo-pf-backups
+          token: ${{ secrets.BACKUP_REPO_TOKEN }}
+          path: backups-repo
+
+      - name: Rodar o backup
+        env:
+          SUPABASE_URL: https://zwcxheqcwtpevqcrrcws.supabase.co
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          BACKUP_DEST_DIR: ${{ github.workspace }}/backups-repo
+        run: node scripts/backup.js
+
+      - name: Guardar no repositório privado
+        working-directory: backups-repo
+        run: |
+          git config user.name "Backup automático Fluxo PF"
+          git config user.email "backup@fluxo-pf.local"
+          git add .
+          git diff --staged --quiet || git commit -m "Backup automático $(date -u +%Y-%m-%d_%Hh)"
+          git push
