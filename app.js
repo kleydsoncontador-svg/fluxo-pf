@@ -26,7 +26,7 @@
         if (tem(vel)) { var bk = 'bkp_' + new Date().toISOString().slice(0, 10) + '_' + k; if (!(bk in cache)) { cache[bk] = vel; sb.from('dados_app').upsert({ key: bk, value: vel, updated_at: new Date().toISOString() }).then(function () {}, function () {}); } }
       }
       cache[k] = v; pendentes++; var ger = geracao;
-      filas[k] = (filas[k] || Promise.resolve()).then(function () { return gravar(k, v, ger); }).catch(function (e) { console.warn(e); window.toast('Falha de rede ao salvar. Tente de novo.', 'err'); }).then(function () { pendentes--; });
+      filas[k] = (filas[k] || Promise.resolve()).then(function () { return gravar(k, v, ger); }).catch(function (e) { console.warn(e); window.toast('Falha de rede ao salvar. Tente de novo.', 'err'); }).then(function () { pendentes--; agendarPasta(); });
     },
     fechAtual: function () { var m = cache['fpf_referencia']; return (typeof m === 'string' && /^\d{4}-\d{2}$/.test(m)) ? m : mesHoje(); },
     chaves: function () { return Object.keys(cache); }
@@ -129,6 +129,54 @@
       localStorage.setItem('fpf_bkp_ult', JSON.stringify({ t: ag.getTime(), h: h, dia: dia, n: n + 1 }));
     } catch (e) { console.warn('backupDiario', e); }
   }
+  // ── backup AUTOMÁTICO em uma pasta do computador (sem janela de download) ──
+  // Você escolhe a pasta uma vez (ex.: dentro do OneDrive). Depois o app grava sozinho um arquivo novo sempre que os dados mudam
+  // (no máximo 1 a cada 15 min), mais o "ULTIMO" sempre atualizado, e guarda os 40 mais recentes. Só funciona no Chrome/Edge do computador.
+  var PASTA_DB = 'fluxo-pf-pasta', pastaTimer = null, pastaGravando = false;
+  function idb(fn) { return new Promise(function (res, rej) { var r = indexedDB.open(PASTA_DB, 1); r.onupgradeneeded = function () { r.result.createObjectStore('h'); }; r.onerror = function () { rej(r.error); }; r.onsuccess = function () { var tx = r.result.transaction('h', 'readwrite'), st = tx.objectStore('h'), q = fn(st); tx.oncomplete = function () { res(q && q.result); }; tx.onerror = function () { rej(tx.error); }; }; }); }
+  function pastaLer() { return idb(function (st) { return st.get('pasta'); }).catch(function () { return null; }); }
+  function pastaGravarHandle(h) { return idb(function (st) { st.put(h, 'pasta'); }); }
+  async function pastaPermissao(h, pedir) { if (!h) return false; try { var o = { mode: 'readwrite' }; if ((await h.queryPermission(o)) === 'granted') return true; if (pedir && (await h.requestPermission(o)) === 'granted') return true; } catch (e) { console.warn('permissão da pasta', e); } return false; }
+  async function salvarBackupNaPasta(forcar) {
+    if (pastaGravando || !carregado) return false;
+    try {
+      var h = await pastaLer(); if (!h || !(await pastaPermissao(h, false))) return false;
+      var tem = Object.keys(cache).some(function (k) { var v = cache[k]; return /^kcbm_pf_[a-z0-9]{6,}/.test(k) && v && ['extrato', 'pagar', 'receber', 'cartoes', 'entradas', 'gastos', 'contratos'].some(function (c) { return Array.isArray(v[c]) && v[c].length; }); });
+      if (!tem) return false;
+      var txt = JSON.stringify({ app: 'fluxo-pf', em: new Date().toISOString(), dados: dadosParaBackup() }, null, 1), hash = hashTexto(JSON.stringify(dadosParaBackup()));
+      var ult = {}; try { ult = JSON.parse(localStorage.getItem('fpf_pasta_ult') || '{}'); } catch (e) {}
+      if (!forcar && ult.h === hash) return false;                                        // nada mudou
+      if (!forcar && ult.t && Date.now() - ult.t < 15 * 60 * 1000) { agendarPasta(); return false; }  // no máximo 1 a cada 15 min
+      pastaGravando = true;
+      var d = new Date(), p2 = function (n) { return String(n).padStart(2, '0'); }, nome = 'fluxo-pf-backup-' + d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate()) + '-' + p2(d.getHours()) + p2(d.getMinutes()) + '.json';
+      for (var arq of [nome, 'fluxo-pf-backup-ULTIMO.json']) { var fh = await h.getFileHandle(arq, { create: true }), w = await fh.createWritable(); await w.write(txt); await w.close(); }
+      var nomes = []; for await (var e of h.values()) { if (e.kind === 'file' && /^fluxo-pf-backup-\d{4}-\d{2}-\d{2}-\d{4}\.json$/.test(e.name)) nomes.push(e.name); }
+      nomes.sort().reverse().slice(40).forEach(function (n) { h.removeEntry(n).catch(function () {}); });
+      localStorage.setItem('fpf_pasta_ult', JSON.stringify({ t: Date.now(), h: hash, nome: nome, quando: d.toISOString() })); pastaGravando = false; atualizarBotaoPasta();
+      return nome;
+    } catch (e) { pastaGravando = false; console.warn('backup na pasta', e); return false; }
+  }
+  function agendarPasta() { clearTimeout(pastaTimer); pastaTimer = setTimeout(function () { salvarBackupNaPasta(false); }, 90 * 1000); }
+  async function botaoPasta() {
+    if (!window.showDirectoryPicker) { window.toast('Este navegador não deixa escolher uma pasta. Use o Chrome ou o Edge no computador.', 'err'); return; }
+    var h = await pastaLer();
+    if (h) {
+      if (!(await pastaPermissao(h, true))) { window.toast('Sem permissão para a pasta. Escolha a pasta de novo.', 'err'); h = null; }
+      else { var u = {}; try { u = JSON.parse(localStorage.getItem('fpf_pasta_ult') || '{}'); } catch (e) {}
+        if (!confirm('Backup automático ATIVO na pasta "' + h.name + '".\
+' + (u.quando ? 'Último: ' + new Date(u.quando).toLocaleString('pt-BR') + '\
+' : '') + '\
+OK = salvar um backup agora.\
+Cancelar = trocar a pasta.')) { h = null; } else { var n = await salvarBackupNaPasta(true); window.toast(n ? 'Backup salvo na pasta: ' + n : 'Não consegui salvar agora.', n ? 'ok' : 'err'); return; } }
+    }
+    try { var novo = await window.showDirectoryPicker({ mode: 'readwrite', id: 'fluxo-pf-backup', startIn: 'documents' }); await pastaGravarHandle(novo); var n2 = await salvarBackupNaPasta(true); window.toast(n2 ? 'Pasta definida. Backup salvo: ' + n2 : 'Pasta definida.', 'ok'); }
+    catch (e) { if (e && e.name !== 'AbortError') window.toast('Não consegui usar essa pasta: ' + (e.message || e) + '. Escolha outra (ex.: Documentos ou OneDrive).', 'err'); }
+    atualizarBotaoPasta();
+  }
+  async function atualizarBotaoPasta() {
+    var b = document.getElementById('btnPasta'); if (!b) return; var h = await pastaLer(), ok = h ? await pastaPermissao(h, false) : false;
+    b.textContent = ok ? '📁 Auto ✓' : (h ? '📁 Reautorizar' : '📁 Pasta'); b.title = ok ? 'Backup automático ativo na pasta "' + h.name + '". Clique para salvar agora ou trocar a pasta.' : (h ? 'Clique para reautorizar a pasta de backup (o navegador pede de novo às vezes).' : 'Escolha uma pasta do computador (ex.: no OneDrive) para o backup automático.');
+  }
   function restaurarBackup() {
     var inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'application/json,.json';
     inp.onchange = async function () {
@@ -186,10 +234,10 @@
     document.getElementById('topo').innerHTML = '<div class="marca"><i></i>FLUXO PF</div><div class="fim">'
       + '<div class="ref" title="Mês de referência: o saldo e a projeção começam por ele"><button id="refAnt" aria-label="Mês anterior">‹</button><b>' + ref.slice(5, 7) + '/' + ref.slice(0, 4) + '</b><button id="refProx" aria-label="Próximo mês">›</button></div>'
       + '<button id="btnMenu" class="soCel" aria-label="Menu">⋯</button><div class="menuTopo" id="menuTopo"><button class="mini" id="btnPdf" title="Imprimir ou salvar esta tela em PDF">PDF</button><button class="mini" id="btnXls" title="Baixar esta tela em Excel">Excel</button><button class="mini" id="btnDiag" title="Mostra o que está guardado no banco">Dados</button>'
-      + '<button id="btnBackup" title="Baixar uma cópia de todos os dados">⬇ Backup</button><button id="btnRestaurar" title="Importar dados de um arquivo de backup (ou do módulo antigo do KCBM)">⬆ Importar</button><button id="btnTema" title="Claro / escuro">◐</button><button id="btnSair">Sair</button></div></div>';
+      + '<button id="btnPasta" title="Backup automático em uma pasta">📁 Pasta</button><button id="btnBackup" title="Baixar uma cópia de todos os dados">⬇ Backup</button><button id="btnRestaurar" title="Importar dados de um arquivo de backup (ou do módulo antigo do KCBM)">⬆ Importar</button><button id="btnTema" title="Claro / escuro">◐</button><button id="btnSair">Sair</button></div></div>';
     document.getElementById('btnMenu').onclick = function (ev) { ev.stopPropagation(); document.getElementById('menuTopo').classList.toggle('aberto'); };
     document.getElementById('menuTopo').onclick = function () { this.classList.remove('aberto'); };
-    document.getElementById('btnPdf').onclick = function () { exportarTela('pdf'); }; document.getElementById('btnXls').onclick = function () { exportarTela('xls'); }; document.getElementById('btnDiag').onclick = diagnostico;
+    document.getElementById('btnPdf').onclick = function () { exportarTela('pdf'); }; document.getElementById('btnXls').onclick = function () { exportarTela('xls'); }; document.getElementById('btnDiag').onclick = diagnostico; document.getElementById('btnPasta').onclick = botaoPasta; atualizarBotaoPasta();
     document.getElementById('btnTema').onclick = alternarTema; document.getElementById('btnBackup').onclick = function () { baixarBackup(); }; document.getElementById('btnRestaurar').onclick = restaurarBackup;
     document.getElementById('btnSair').onclick = function () { sb.auth.signOut(); };
     var troca = function (n) { window.S.s('fpf_referencia', somaMes(window.S.fechAtual(), n)); desenharTopo(); window.pfRender && window.pfRender(); };
@@ -208,7 +256,7 @@
       if (JSON.stringify(cache) === antes) { cache = velho; } else { desenharTopo(); window.pfRender && window.pfRender(); }
     } catch (e) { console.warn('sincronizar', e); } finally { sincronizando = false; }
   }
-  document.addEventListener('visibilitychange', function () { if (!document.hidden) sincronizar(); });
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) sincronizar(); else salvarBackupNaPasta(false); });
   window.addEventListener('focus', sincronizar);
   setInterval(sincronizar, 20000);
   async function abrirApp(user) {
@@ -216,7 +264,7 @@
     document.getElementById('tela-login').style.display = 'none'; document.getElementById('tela-app').style.display = 'block';
     document.getElementById('pf-app').innerHTML = '<div style="padding:40px;text-align:center;color:var(--slate)">Carregando seus dados…</div>';
     try { await carregarTudo(); } catch (e) { console.warn(e); document.getElementById('pf-app').innerHTML = '<div style="padding:40px;text-align:center;color:var(--neg)">Não consegui carregar os dados (' + (e.message || e) + '). Recarregue a página.</div>'; return; }
-    desenharTopo(); window.pfRender(); setTimeout(backupDiario, 1500);
+    desenharTopo(); window.pfRender(); setTimeout(backupDiario, 1500); setTimeout(function () { salvarBackupNaPasta(false); }, 4000);
   }
   function mostrarLogin(msg) { document.getElementById('tela-app').style.display = 'none'; document.getElementById('tela-login').style.display = 'flex'; cache = {}; carregado = false; if (msg) document.getElementById('loginErro').textContent = msg; }
 
