@@ -125,7 +125,7 @@
       if (ult.h === h) return;                                             // nada mudou desde o último backup
       if (ult.t && ag.getTime() - ult.t < 4 * 3600 * 1000) return;         // no mínimo 4 h entre backups
       var n = (ult.dia === dia) ? (ult.n || 0) : 0; if (n >= 3) return;     // no máximo 3 por dia
-      baixarBackup(true);
+      pastaLer().then(function (hd) { return hd ? pastaPermissao(hd, false) : false; }).then(function (ok) { if (!ok) baixarBackup(true); }, function () { baixarBackup(true); });   // com pasta escolhida, não baixa para Downloads
       localStorage.setItem('fpf_bkp_ult', JSON.stringify({ t: ag.getTime(), h: h, dia: dia, n: n + 1 }));
     } catch (e) { console.warn('backupDiario', e); }
   }
