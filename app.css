@@ -115,3 +115,10 @@ input,select,textarea{color-scheme:inherit}
 
 /* lápis de editar dos cartões: pequenininho */
 .kpfEdit .btn,.kpfEdit button{padding:1px 6px;font-size:10.5px;min-height:0;line-height:1.25;border-radius:6px}
+
+/* abas no computador: cabem todas numa linha; o nome quebra em duas linhas, centralizado (ex.: Extrato / bancário) */
+@media (min-width:721px){
+  .kpfTabs{flex-wrap:nowrap !important;gap:3px !important;overflow-x:auto}
+  .kpfTab{white-space:normal !important;display:flex !important;align-items:center;justify-content:center;gap:6px;padding:6px 9px !important;line-height:1.12;flex:0 0 auto}
+  .kpfTab .lg{display:inline-block;max-width:82px;text-align:center;white-space:normal}
+}
