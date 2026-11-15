@@ -12,12 +12,14 @@ jobs:
       - name: Código do site
         uses: actions/checkout@v4
 
-      - name: Repositório privado de backups
-        uses: actions/checkout@v4
-        with:
-          repository: kleydsoncontador-svg/fluxo-pf-backups
-          token: ${{ secrets.BACKUP_REPO_TOKEN }}
-          path: backups-repo
+      - name: Repositório privado de backups (funciona mesmo vazio)
+        env:
+          BACKUP_REPO_TOKEN: ${{ secrets.BACKUP_REPO_TOKEN }}
+        run: |
+          if [ -z "$BACKUP_REPO_TOKEN" ]; then echo "ERRO: o segredo BACKUP_REPO_TOKEN não está cadastrado."; exit 1; fi
+          git clone "https://x-access-token:${BACKUP_REPO_TOKEN}@github.com/kleydsoncontador-svg/fluxo-pf-backups.git" backups-repo \
+            || { echo "ERRO: não consegui acessar kleydsoncontador-svg/fluxo-pf-backups. Confira se o token tem acesso a ESSE repositório e permissão Contents = Read and write."; exit 1; }
+          cd backups-repo && git checkout -B main
 
       - name: Rodar o backup
         env:
@@ -33,4 +35,4 @@ jobs:
           git config user.email "backup@fluxo-pf.local"
           git add .
           git diff --staged --quiet || git commit -m "Backup automático $(date -u +%Y-%m-%d_%Hh)"
-          git push
+          git push -u origin main
