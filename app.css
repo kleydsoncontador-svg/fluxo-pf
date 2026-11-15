@@ -122,3 +122,29 @@ input,select,textarea{color-scheme:inherit}
   .kpfTab{white-space:normal !important;display:flex !important;align-items:center;justify-content:center;gap:6px;padding:6px 9px !important;line-height:1.12;flex:0 0 auto}
   .kpfTab .lg{display:inline-block;max-width:82px;text-align:center;white-space:normal}
 }
+
+/* ── celular: app enxuto e mais legível (o computador não muda) ── */
+.soMob{display:none}
+@media (max-width:720px){
+  .soDesk{display:none !important}
+  .soMob{display:inline-flex}
+  #pf-app{font-size:15px}
+  #pf-app > div{padding:10px 12px 96px !important}
+  /* textos longos de explicação saem da tela pequena */
+  #kpfAba > div[style*="color:var(--slate)"][style*="font-size:12px"]{display:none}
+  /* cabeçalho: nome da pessoa menor, uma linha só */
+  #pf-app > div > div:first-child{gap:8px !important}
+  #pf-app > div > div:first-child > div[style*="font-size:1.25rem"]{font-size:1.05rem !important}
+  /* botões e campos mais confortáveis para o dedo */
+  .btn{min-height:44px;font-size:14px}
+  .btn.bsm{min-height:40px;font-size:13.5px;padding:8px 12px}
+  input,select,textarea{font-size:16px !important}
+  table.tabCard>tbody>tr{font-size:14.5px}
+  .kpfTab{font-size:11px !important;min-width:72px}
+  .kpfTab .kpfI svg{width:24px;height:22px}
+}
+@media (max-width:720px){
+  .kpfTab{flex:1 1 0 !important;min-width:0 !important;padding:8px 4px 7px !important}
+  .kpfTab .lg{display:block !important;text-align:center;white-space:normal;line-height:1.1;max-width:84px}
+  .kpfTab .sh{display:none !important}
+}
