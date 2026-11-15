@@ -117,6 +117,7 @@
   function hashTexto(t) { var h = 5381; for (var i = 0; i < t.length; i++) h = ((h << 5) + h + t.charCodeAt(i)) | 0; return String(h) + ':' + t.length; }
   function backupDiario() {
     try {
+      if (window.matchMedia && matchMedia('(max-width:720px)').matches) return;   // no celular não baixa arquivo de backup sozinho: os dados já sincronizam com o computador pelo servidor
       var tem = Object.keys(cache).some(function (k) { var v = cache[k]; return /^kcbm_pf_[a-z0-9]{6,}/.test(k) && v && ['extrato', 'pagar', 'receber', 'cartoes', 'entradas', 'gastos', 'contratos'].some(function (c) { return Array.isArray(v[c]) && v[c].length; }); });
       if (!tem) return;
       var ag = new Date(), dia = ag.getFullYear() + '-' + String(ag.getMonth() + 1).padStart(2, '0') + '-' + String(ag.getDate()).padStart(2, '0');
